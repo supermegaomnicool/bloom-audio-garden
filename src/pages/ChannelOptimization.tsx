@@ -4,9 +4,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { ArrowLeft, Star, AlertTriangle, CheckCircle, TrendingUp, FileText, Clock, Users, X, Eye, EyeOff, Sparkles, Upload, Image } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -47,6 +48,9 @@ export const ChannelOptimization = () => {
   const [exclusionNotes, setExclusionNotes] = useState("");
   const [showExcluded, setShowExcluded] = useState(false);
   const [aiSuggestions, setAiSuggestions] = useState<Map<string, AISuggestion>>(new Map());
+  const [confirmGenerateDialog, setConfirmGenerateDialog] = useState<string | null>(null);
+  const [transcriptDialog, setTranscriptDialog] = useState<string | null>(null);
+  const [uploadingTranscript, setUploadingTranscript] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -240,6 +244,235 @@ export const ChannelOptimization = () => {
         description: "Please try again later.",
         variant: "destructive",
       });
+    }
+  };
+
+  // Estimate transcript generation cost
+  const estimateTranscriptCost = (episode: Episode) => {
+    // OpenAI Whisper costs $0.006 per minute
+    const costPerMinute = 0.006;
+    
+    if (episode.duration) {
+      // Parse duration format (e.g., "01:23:45" or "23:45")
+      const parts = episode.duration.split(':').map(Number);
+      let totalMinutes = 0;
+      
+      if (parts.length === 3) {
+        // HH:MM:SS format
+        totalMinutes = parts[0] * 60 + parts[1] + parts[2] / 60;
+      } else if (parts.length === 2) {
+        // MM:SS format
+        totalMinutes = parts[0] + parts[1] / 60;
+      }
+      
+      const estimatedCost = totalMinutes * costPerMinute;
+      return {
+        minutes: Math.ceil(totalMinutes),
+        cost: estimatedCost,
+        costFormatted: `$${estimatedCost.toFixed(3)}`
+      };
+    }
+    
+    // Fallback: estimate based on file size (rough estimate: 1MB ≈ 1 minute for typical podcast audio)
+    if (episode.file_size) {
+      const estimatedMinutes = Math.ceil(episode.file_size / (1024 * 1024));
+      const estimatedCost = estimatedMinutes * costPerMinute;
+      return {
+        minutes: estimatedMinutes,
+        cost: estimatedCost,
+        costFormatted: `$${estimatedCost.toFixed(3)} (estimated)`
+      };
+    }
+    
+    // Ultimate fallback
+    return {
+      minutes: 30, // Assume 30 minutes average
+      cost: 30 * costPerMinute,
+      costFormatted: `$${(30 * costPerMinute).toFixed(3)} (estimated)`
+    };
+  };
+
+  const parseSRT = (content: string): string => {
+    // Parse SRT format and preserve structure with timestamps
+    const lines = content.split('\n');
+    const segments: string[] = [];
+    let currentTimestamp = '';
+    let currentText: string[] = [];
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      
+      if (line === '') {
+        // End of segment
+        if (currentTimestamp && currentText.length > 0) {
+          segments.push(`[${currentTimestamp.split(' --> ')[0]}]\n${currentText.join(' ')}\n`);
+        }
+        currentTimestamp = '';
+        currentText = [];
+      } else if (/^\d+$/.test(line)) {
+        // Subtitle number - skip
+        continue;
+      } else if (/^\d{2}:\d{2}:\d{2},\d{3} --> \d{2}:\d{2}:\d{2},\d{3}$/.test(line)) {
+        // Timestamp line
+        currentTimestamp = line.replace(/,/g, '.');
+      } else if (currentTimestamp) {
+        // Text content
+        currentText.push(line);
+      }
+    }
+    
+    // Don't forget the last segment
+    if (currentTimestamp && currentText.length > 0) {
+      segments.push(`[${currentTimestamp.split(' --> ')[0]}]\n${currentText.join(' ')}\n`);
+    }
+
+    return segments.join('\n');
+  };
+
+  const parseVTT = (content: string): string => {
+    // Parse VTT format and preserve speaker info + timestamps
+    const lines = content.split('\n');
+    const segments: string[] = [];
+    let currentTimestamp = '';
+    let currentSpeaker = '';
+    let currentText: string[] = [];
+    let pastHeader = false;
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      
+      if (line === 'WEBVTT' || line.startsWith('NOTE')) {
+        pastHeader = true;
+        continue;
+      } else if (!pastHeader) {
+        continue;
+      } else if (line === '') {
+        // End of segment
+        if (currentTimestamp && currentText.length > 0) {
+          const speaker = currentSpeaker ? `**${currentSpeaker}**: ` : '';
+          const timestamp = `[${currentTimestamp.split(' --> ')[0]}]`;
+          segments.push(`${timestamp} ${speaker}${currentText.join(' ')}\n`);
+        }
+        currentTimestamp = '';
+        currentSpeaker = '';
+        currentText = [];
+      } else if (/^\d{2}:\d{2}:\d{2}\.\d{3} --> \d{2}:\d{2}:\d{2}\.\d{3}/.test(line)) {
+        // Timestamp line
+        currentTimestamp = line;
+      } else if (currentTimestamp) {
+        // Text content - check for speaker tags
+        const speakerMatch = line.match(/^<v\s+([^>]+)>/);
+        if (speakerMatch) {
+          currentSpeaker = speakerMatch[1];
+          const textWithoutSpeaker = line.replace(/^<v\s+[^>]+>/, '').trim();
+          if (textWithoutSpeaker) {
+            currentText.push(textWithoutSpeaker);
+          }
+        } else {
+          // Regular text or text with other tags
+          const cleanText = line.replace(/<[^>]*>/g, '').trim();
+          if (cleanText) {
+            currentText.push(cleanText);
+          }
+        }
+      }
+    }
+    
+    // Don't forget the last segment
+    if (currentTimestamp && currentText.length > 0) {
+      const speaker = currentSpeaker ? `**${currentSpeaker}**: ` : '';
+      const timestamp = `[${currentTimestamp.split(' --> ')[0]}]`;
+      segments.push(`${timestamp} ${speaker}${currentText.join(' ')}\n`);
+    }
+
+    return segments.join('\n');
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>, episodeId: string) => {
+    const file = event.target.files?.[0];
+    if (!file || !episodeId) return;
+
+    console.log('Starting file upload for episode:', episodeId, 'File:', file.name);
+
+    const allowedTypes = ['text/plain', 'application/x-subrip', '.srt', '.vtt'];
+    const fileExtension = file.name.toLowerCase().split('.').pop();
+    
+    if (!['txt', 'srt', 'vtt'].includes(fileExtension || '')) {
+      toast({
+        title: "Invalid File Type",
+        description: "Please upload a TXT, SRT, or VTT file.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setUploadingTranscript(episodeId);
+
+    try {
+      const content = await file.text();
+      console.log('File content read, length:', content.length);
+      let transcript = content;
+
+      // Parse different formats
+      if (fileExtension === 'srt') {
+        transcript = parseSRT(content);
+        console.log('Parsed SRT, new length:', transcript.length);
+      } else if (fileExtension === 'vtt') {
+        transcript = parseVTT(content);
+        console.log('Parsed VTT, new length:', transcript.length);
+      }
+
+      console.log('About to update episode in database...');
+      
+      // Check current user and episode details for debugging
+      const { data: currentUser } = await supabase.auth.getUser();
+      console.log('Current user:', currentUser?.user?.id);
+      
+      const currentEpisode = episodes.find(ep => ep.id === episodeId);
+      console.log('Episode user_id:', currentEpisode?.user_id);
+      console.log('Episode ID:', episodeId);
+      
+      // Update episode with transcript
+      const { data, error } = await supabase
+        .from('episodes')
+        .update({ transcript })
+        .eq('id', episodeId)
+        .select();
+
+      if (error) {
+        console.error('Database update error:', error);
+        throw error;
+      }
+
+      console.log('Database updated successfully, returned data:', data);
+
+      // Update local state
+      setEpisodes(prevEpisodes => prevEpisodes.map(episode => 
+        episode.id === episodeId 
+          ? { ...episode, transcript }
+          : episode
+      ));
+
+      console.log('Local state updated');
+
+      setTranscriptDialog(null);
+      
+      toast({
+        title: "Transcript Imported",
+        description: `Transcript from ${file.name} has been imported successfully.`,
+      });
+
+    } catch (error) {
+      console.error("Error uploading transcript:", error);
+      toast({
+        title: "Error Importing Transcript",
+        description: `Please try again. Error: ${error.message}`,
+        variant: "destructive",
+      });
+    } finally {
+      setUploadingTranscript(null);
+      // Reset file input
+      event.target.value = '';
     }
   };
 
@@ -643,15 +876,26 @@ export const ChannelOptimization = () => {
                         <p className="text-xs text-orange-700 dark:text-orange-300 mt-1 mb-3">
                           Generate a transcript to unlock detailed optimization suggestions and improve searchability
                         </p>
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          onClick={() => generateTranscript(episodeScore.episode)}
-                          className="border-orange-300 text-orange-700 hover:bg-orange-50 dark:border-orange-700 dark:text-orange-300"
-                        >
-                          <Upload className="h-4 w-4 mr-2" />
-                          Generate Transcript
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => setConfirmGenerateDialog(episodeScore.episode.id)}
+                            className="border-orange-300 text-orange-700 hover:bg-orange-50 dark:border-orange-700 dark:text-orange-300"
+                          >
+                            <Upload className="h-4 w-4 mr-2" />
+                            Generate Transcript
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => setTranscriptDialog(episodeScore.episode.id)}
+                            className="border-blue-300 text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-300"
+                          >
+                            <FileText className="h-4 w-4 mr-2" />
+                            Upload Transcript
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -820,6 +1064,88 @@ export const ChannelOptimization = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Generate Transcript Confirmation Dialog */}
+      {confirmGenerateDialog && (
+        <Dialog open={!!confirmGenerateDialog} onOpenChange={(open) => setConfirmGenerateDialog(open ? confirmGenerateDialog : null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Generate Transcript</DialogTitle>
+              <DialogDescription>
+                Are you sure you want to generate a transcript for "{episodes.find(ep => ep.id === confirmGenerateDialog)?.title}"?
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3">
+              <div className="bg-muted/30 p-3 rounded">
+                <h4 className="text-sm font-medium mb-2">Cost Estimate</h4>
+                <div className="text-sm space-y-1">
+                  <div>Duration: ~{estimateTranscriptCost(episodes.find(ep => ep.id === confirmGenerateDialog)!).minutes} minutes</div>
+                  <div>Estimated cost: {estimateTranscriptCost(episodes.find(ep => ep.id === confirmGenerateDialog)!).costFormatted}</div>
+                  <div className="text-xs text-muted-foreground mt-2">
+                    * Based on OpenAI Whisper pricing ($0.006/minute)
+                  </div>
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button 
+                variant="outline" 
+                onClick={() => setConfirmGenerateDialog(null)}
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={() => {
+                  const episode = episodes.find(ep => ep.id === confirmGenerateDialog);
+                  if (episode) {
+                    setConfirmGenerateDialog(null);
+                    generateTranscript(episode);
+                  }
+                }}
+              >
+                Generate Transcript
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Upload Transcript Dialog */}
+      {transcriptDialog && (
+        <Dialog open={!!transcriptDialog} onOpenChange={(open) => setTranscriptDialog(open ? transcriptDialog : null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Import Transcript</DialogTitle>
+              <DialogDescription>
+                Upload a transcript file for "{episodes.find(ep => ep.id === transcriptDialog)?.title}". Supported formats: TXT, SRT, VTT
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid w-full max-w-sm items-center gap-1.5">
+              <Label htmlFor="transcript-file">Transcript File</Label>
+              <Input
+                id="transcript-file"
+                type="file"
+                accept=".txt,.srt,.vtt"
+                onChange={(e) => handleFileUpload(e, transcriptDialog)}
+                disabled={uploadingTranscript === transcriptDialog}
+              />
+              <p className="text-sm text-muted-foreground">
+                **Recommended:** VTT files preserve speaker names and timestamps for better readability<br/>
+                TXT: Plain text • SRT: SubRip subtitles • VTT: WebVTT with speakers
+              </p>
+            </div>
+            <DialogFooter>
+              <Button 
+                variant="outline" 
+                onClick={() => setTranscriptDialog(null)}
+                disabled={uploadingTranscript === transcriptDialog}
+              >
+                Cancel
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 };
