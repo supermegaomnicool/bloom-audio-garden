@@ -29,7 +29,24 @@ export const AddChannelDialog = ({ open, onOpenChange }: AddChannelDialogProps) 
     setLoading(true);
 
     try {
-      // First, insert the basic channel info
+      // Check if channel already exists
+      const { data: existingChannel } = await supabase
+        .from("channels")
+        .select("id")
+        .eq("url", formData.url)
+        .single();
+
+      if (existingChannel) {
+        toast({
+          title: "Channel already exists",
+          description: "This channel has already been added to your collection.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+
+      // Insert the basic channel info
       const { data: channelData, error: channelError } = await supabase
         .from("channels")
         .insert({
@@ -82,9 +99,6 @@ export const AddChannelDialog = ({ open, onOpenChange }: AddChannelDialogProps) 
       // Reset form
       setFormData({ name: "", url: "", description: "" });
       onOpenChange(false);
-      
-      // Refresh the page to show new channel
-      window.location.reload();
     } catch (error) {
       console.error("Error adding channel:", error);
       toast({
