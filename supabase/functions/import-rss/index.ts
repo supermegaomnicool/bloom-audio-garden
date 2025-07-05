@@ -26,6 +26,31 @@ interface Channel {
   url: string;
 }
 
+// Simple XML parsing function
+function extractTextContent(xml: string, tagName: string): string {
+  const regex = new RegExp(`<${tagName}[^>]*>([^<]*)<\/${tagName}>`, 'i');
+  const match = xml.match(regex);
+  return match ? match[1].trim() : '';
+}
+
+function extractAttribute(xml: string, tagName: string, attribute: string): string {
+  const regex = new RegExp(`<${tagName}[^>]*${attribute}=["']([^"']*)["'][^>]*>`, 'i');
+  const match = xml.match(regex);
+  return match ? match[1].trim() : '';
+}
+
+function extractAllItems(xml: string): string[] {
+  const items: string[] = [];
+  const itemRegex = /<item[\s\S]*?<\/item>/gi;
+  let match;
+  
+  while ((match = itemRegex.exec(xml)) !== null) {
+    items.push(match[0]);
+  }
+  
+  return items;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -54,25 +79,11 @@ serve(async (req) => {
     const rssText = await rssResponse.text();
     console.log('RSS feed fetched successfully');
 
-    // Parse RSS XML
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(rssText, 'text/xml');
-    
-    if (!doc) {
-      throw new Error('Failed to parse RSS XML');
-    }
-
-    // Extract channel info
-    const channelElement = doc.querySelector('channel');
-    if (!channelElement) {
-      throw new Error('Invalid RSS feed: no channel element found');
-    }
-
+    // Extract channel info using simple string parsing
     const channelInfo: Channel = {
-      name: channelElement.querySelector('title')?.textContent?.trim() || 'Unknown Podcast',
-      description: channelElement.querySelector('description')?.textContent?.trim() || '',
-      artwork_url: channelElement.querySelector('image url')?.textContent?.trim() || 
-                   channelElement.querySelector('itunes\\:image')?.getAttribute('href') || '',
+      name: extractTextContent(rssText, 'title') || 'Unknown Podcast',
+      description: extractTextContent(rssText, 'description') || '',
+      artwork_url: extractAttribute(rssText, 'itunes:image', 'href') || extractTextContent(rssText, 'url') || '',
       url: rss_url
     };
 
@@ -122,37 +133,28 @@ serve(async (req) => {
       console.error('Error updating channel:', channelUpdateError);
     }
 
-    // Extract episodes
-    const items = doc.querySelectorAll('item');
+    // Extract episodes using simple parsing
+    const itemsXml = extractAllItems(rssText);
     const episodes: Episode[] = [];
 
-    console.log(`Found ${items.length} episodes to process`);
+    console.log(`Found ${itemsXml.length} episodes to process`);
 
-    for (const item of items) {
+    for (const itemXml of itemsXml) {
       try {
-        const titleElement = item.querySelector('title');
-        const descriptionElement = item.querySelector('description');
-        const pubDateElement = item.querySelector('pubDate');
-        const enclosureElement = item.querySelector('enclosure');
-        const durationElement = item.querySelector('itunes\\:duration');
-        const episodeElement = item.querySelector('itunes\\:episode');
-        const seasonElement = item.querySelector('itunes\\:season');
-        const guidElement = item.querySelector('guid');
-        const itunesImageElement = item.querySelector('itunes\\:image');
-
-        if (!titleElement?.textContent) continue;
+        const title = extractTextContent(itemXml, 'title');
+        if (!title) continue;
 
         const episode: Episode = {
-          title: titleElement.textContent.trim(),
-          description: descriptionElement?.textContent?.trim() || '',
-          published_at: pubDateElement?.textContent ? new Date(pubDateElement.textContent).toISOString() : new Date().toISOString(),
-          duration: durationElement?.textContent?.trim() || '',
-          audio_url: enclosureElement?.getAttribute('url') || '',
-          artwork_url: itunesImageElement?.getAttribute('href') || '',
-          episode_number: episodeElement?.textContent ? parseInt(episodeElement.textContent) : undefined,
-          season_number: seasonElement?.textContent ? parseInt(seasonElement.textContent) : undefined,
-          file_size: enclosureElement?.getAttribute('length') ? parseInt(enclosureElement.getAttribute('length')!) : undefined,
-          external_id: guidElement?.textContent?.trim() || `${channel_id}-${titleElement.textContent.trim()}`
+          title: title,
+          description: extractTextContent(itemXml, 'description') || '',
+          published_at: extractTextContent(itemXml, 'pubDate') ? new Date(extractTextContent(itemXml, 'pubDate')).toISOString() : new Date().toISOString(),
+          duration: extractTextContent(itemXml, 'itunes:duration') || '',
+          audio_url: extractAttribute(itemXml, 'enclosure', 'url') || '',
+          artwork_url: extractAttribute(itemXml, 'itunes:image', 'href') || '',
+          episode_number: extractTextContent(itemXml, 'itunes:episode') ? parseInt(extractTextContent(itemXml, 'itunes:episode')) : undefined,
+          season_number: extractTextContent(itemXml, 'itunes:season') ? parseInt(extractTextContent(itemXml, 'itunes:season')) : undefined,
+          file_size: extractAttribute(itemXml, 'enclosure', 'length') ? parseInt(extractAttribute(itemXml, 'enclosure', 'length')) : undefined,
+          external_id: extractTextContent(itemXml, 'guid') || `${channel_id}-${title}`
         };
 
         episodes.push(episode);
@@ -197,17 +199,6 @@ serve(async (req) => {
           }
         }
 
-        // Get user_id from channel
-        const { data: channelData } = await supabase
-          .from('channels')
-          .select('user_id')
-          .eq('id', channel_id)
-          .single();
-
-        if (!channelData) {
-          throw new Error('Channel not found');
-        }
-
         // Insert or update episode
         const { error: episodeError } = await supabase
           .from('episodes')
@@ -224,7 +215,7 @@ serve(async (req) => {
             season_number: episode.season_number,
             external_id: episode.external_id,
             channel_id: channel_id,
-            user_id: channelData.user_id
+            user_id: "00000000-0000-0000-0000-000000000000"
           }, {
             onConflict: 'external_id,channel_id'
           });
