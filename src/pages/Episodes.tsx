@@ -777,7 +777,10 @@ export const Episodes = () => {
                     <Button 
                       variant="bloom" 
                       size="sm"
-                      onClick={() => navigate(`/optimize/${channelId}`)}
+                      onClick={() => {
+                        console.log('Optimize button clicked, channelId:', channelId);
+                        navigate(`/optimize/${channelId}`);
+                      }}
                     >
                       Optimize
                     </Button>
