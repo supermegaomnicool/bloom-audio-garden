@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Youtube, Video, AudioWaveform, Users, TrendingUp, Calendar } from "lucide-react";
-import heroImage from "@/assets/hero-nature.jpg";
+import heroImage from "@/assets/hero-fantasy-forest.jpg";
 import { ChannelList } from "./ChannelList";
 import { AddChannelDialog } from "./AddChannelDialog";
 
@@ -20,10 +20,10 @@ export const Dashboard = () => {
         <div className="absolute inset-0 bg-gradient-to-r from-background/80 to-background/60" />
         <div className="relative text-center max-w-4xl mx-auto px-6">
           <h1 className="text-4xl md:text-6xl font-bold mb-4 text-foreground">
-            Bloom Audio Garden
+            Podcast Alchemy Project
           </h1>
           <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto">
-            Cultivate better content. Analyze, optimize, and grow your podcast and YouTube channels with AI-powered insights.
+            Transform your podcasts with magical AI-powered insights. Transmute ordinary content into extraordinary experiences.
           </p>
         </div>
       </div>
