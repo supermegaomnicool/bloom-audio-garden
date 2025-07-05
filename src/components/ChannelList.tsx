@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Youtube, Video, Users, Calendar, TrendingUp, ExternalLink, RefreshCw, Trash2, Edit3, Save, X, MoreVertical } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -224,10 +225,23 @@ export const ChannelList = () => {
           <CardHeader>
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-3">
-                {channel.type === "youtube" ? (
-                  <Youtube className="h-5 w-5 text-red-500" />
+                {channel.artwork_url ? (
+                  <Avatar className="h-10 w-10">
+                    <AvatarImage src={channel.artwork_url} alt={`${channel.name} artwork`} />
+                    <AvatarFallback>
+                      {channel.type === "youtube" ? (
+                        <Youtube className="h-5 w-5 text-red-500" />
+                      ) : (
+                        <Video className="h-5 w-5 text-primary" />
+                      )}
+                    </AvatarFallback>
+                  </Avatar>
                 ) : (
-                  <Video className="h-5 w-5 text-primary" />
+                  channel.type === "youtube" ? (
+                    <Youtube className="h-5 w-5 text-red-500" />
+                  ) : (
+                    <Video className="h-5 w-5 text-primary" />
+                  )
                 )}
                 <div>
                   <CardTitle className="text-lg">{channel.name}</CardTitle>
