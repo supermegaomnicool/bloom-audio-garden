@@ -28,9 +28,20 @@ interface Channel {
 
 // Simple XML parsing function
 function extractTextContent(xml: string, tagName: string): string {
-  const regex = new RegExp(`<${tagName}[^>]*>([^<]*)<\/${tagName}>`, 'i');
-  const match = xml.match(regex);
-  return match ? match[1].trim() : '';
+  // Try multiple patterns for different RSS formats
+  const patterns = [
+    new RegExp(`<${tagName}[^>]*>([^<]*)<\/${tagName}>`, 'i'),
+    new RegExp(`<${tagName}[^>]*><\\!\\[CDATA\\[([^\\]]*)\\]\\]><\/${tagName}>`, 'i'),
+    new RegExp(`<${tagName}>([^<]*)<\/${tagName}>`, 'i')
+  ];
+  
+  for (const pattern of patterns) {
+    const match = xml.match(pattern);
+    if (match && match[1]) {
+      return match[1].trim();
+    }
+  }
+  return '';
 }
 
 function extractAttribute(xml: string, tagName: string, attribute: string): string {
@@ -41,6 +52,7 @@ function extractAttribute(xml: string, tagName: string, attribute: string): stri
 
 function extractAllItems(xml: string): string[] {
   const items: string[] = [];
+  // More flexible item extraction
   const itemRegex = /<item[\s\S]*?<\/item>/gi;
   let match;
   
@@ -48,6 +60,7 @@ function extractAllItems(xml: string): string[] {
     items.push(match[0]);
   }
   
+  console.log(`Found ${items.length} item blocks in RSS`);
   return items;
 }
 

@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Youtube, Video, Users, Calendar, TrendingUp, ExternalLink, RefreshCw, Trash2, Edit3, Save, X } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Youtube, Video, Users, Calendar, TrendingUp, ExternalLink, RefreshCw, Trash2, Edit3, Save, X, MoreVertical } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Tables } from "@/integrations/supabase/types";
@@ -217,7 +218,7 @@ export const ChannelList = () => {
   return (
     <div className="space-y-4">
       {channels.map((channel) => (
-        <Card key={channel.id} className="shadow-soft border-border/50 hover:shadow-natural transition-shadow">
+        <Card key={channel.id} className="shadow-soft border-border/50 hover:shadow-natural transition-shadow relative">
           <CardHeader>
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-3">
@@ -354,13 +355,29 @@ export const ChannelList = () => {
                   <RefreshCw className={`h-4 w-4 mr-2 ${syncingChannels.has(channel.id) ? 'animate-spin' : ''}`} />
                   {syncingChannels.has(channel.id) ? 'Syncing...' : 'Sync Now'}
                 </Button>
-                
+
+                <Button variant="bloom" size="sm">
+                  Optimize
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+          
+          {/* Hamburger Menu in Bottom Right Corner */}
+          <div className="absolute bottom-3 right-3">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
-                    <Button variant="outline" size="sm" className="text-destructive hover:text-destructive">
+                    <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive cursor-pointer">
                       <Trash2 className="h-4 w-4 mr-2" />
-                      Delete
-                    </Button>
+                      Delete Channel
+                    </DropdownMenuItem>
                   </AlertDialogTrigger>
                   <AlertDialogContent>
                     <AlertDialogHeader>
@@ -380,13 +397,9 @@ export const ChannelList = () => {
                     </AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>
-
-                <Button variant="bloom" size="sm">
-                  Optimize
-                </Button>
-              </div>
-            </div>
-          </CardContent>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </Card>
       ))}
     </div>
