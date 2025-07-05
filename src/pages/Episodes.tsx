@@ -318,18 +318,27 @@ export const Episodes = () => {
 
       console.log('About to update episode in database...');
       
+      // Check current user and episode details for debugging
+      const { data: currentUser } = await supabase.auth.getUser();
+      console.log('Current user:', currentUser?.user?.id);
+      
+      const currentEpisode = episodes.find(ep => ep.id === episodeId);
+      console.log('Episode user_id:', currentEpisode?.user_id);
+      console.log('Episode ID:', episodeId);
+      
       // Update episode with transcript
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('episodes')
         .update({ transcript })
-        .eq('id', episodeId);
+        .eq('id', episodeId)
+        .select();
 
       if (error) {
         console.error('Database update error:', error);
         throw error;
       }
 
-      console.log('Database updated successfully');
+      console.log('Database updated successfully, returned data:', data);
 
       // Update local state
       setEpisodes(prevEpisodes => prevEpisodes.map(episode => 
