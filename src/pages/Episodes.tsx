@@ -17,6 +17,7 @@ export const Episodes = () => {
   const [episodes, setEpisodes] = useState<Episode[]>([]);
   const [channel, setChannel] = useState<Channel | null>(null);
   const [loading, setLoading] = useState(true);
+  const [expandedEpisode, setExpandedEpisode] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -183,13 +184,107 @@ export const Episodes = () => {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
+                  {/* Description */}
                   {episode.description && (
-                    <div 
-                      className="text-sm text-muted-foreground line-clamp-3 prose prose-sm max-w-none prose-p:my-2 prose-a:text-primary prose-strong:text-foreground"
-                      dangerouslySetInnerHTML={{ __html: episode.description }}
-                    />
+                    <div>
+                      <h4 className="text-sm font-medium text-foreground mb-2">Description</h4>
+                      <div 
+                        className={`text-sm text-muted-foreground prose prose-sm max-w-none prose-p:my-2 prose-a:text-primary prose-strong:text-foreground ${expandedEpisode === episode.id ? '' : 'line-clamp-3'}`}
+                        dangerouslySetInnerHTML={{ __html: episode.description }}
+                      />
+                    </div>
+                  )}
+
+                  {/* Expanded Details */}
+                  {expandedEpisode === episode.id && (
+                    <div className="space-y-4 border-t pt-4">
+                      {/* AI Suggestions */}
+                      {(episode.ai_suggested_title || episode.ai_suggested_description) && (
+                        <div>
+                          <h4 className="text-sm font-medium text-foreground mb-2">AI Suggestions</h4>
+                          <div className="space-y-2">
+                            {episode.ai_suggested_title && (
+                              <div>
+                                <span className="text-xs font-medium text-muted-foreground">Suggested Title:</span>
+                                <p className="text-sm">{episode.ai_suggested_title}</p>
+                              </div>
+                            )}
+                            {episode.ai_suggested_description && (
+                              <div>
+                                <span className="text-xs font-medium text-muted-foreground">Suggested Description:</span>
+                                <div 
+                                  className="text-sm prose prose-sm max-w-none prose-p:my-1"
+                                  dangerouslySetInnerHTML={{ __html: episode.ai_suggested_description }}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Technical Details */}
+                      <div>
+                        <h4 className="text-sm font-medium text-foreground mb-2">Technical Details</h4>
+                        <div className="grid grid-cols-2 gap-4 text-xs">
+                          {episode.external_id && (
+                            <div>
+                              <span className="font-medium text-muted-foreground">External ID:</span>
+                              <p className="break-all">{episode.external_id}</p>
+                            </div>
+                          )}
+                          {episode.audio_url && (
+                            <div>
+                              <span className="font-medium text-muted-foreground">Audio URL:</span>
+                              <a href={episode.audio_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline break-all">
+                                {episode.audio_url.length > 50 ? `${episode.audio_url.substring(0, 50)}...` : episode.audio_url}
+                              </a>
+                            </div>
+                          )}
+                          {episode.artwork_url && (
+                            <div>
+                              <span className="font-medium text-muted-foreground">Artwork URL:</span>
+                              <a href={episode.artwork_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline break-all">
+                                {episode.artwork_url.length > 50 ? `${episode.artwork_url.substring(0, 50)}...` : episode.artwork_url}
+                              </a>
+                            </div>
+                          )}
+                          {episode.has_custom_artwork !== null && (
+                            <div>
+                              <span className="font-medium text-muted-foreground">Custom Artwork:</span>
+                              <p>{episode.has_custom_artwork ? 'Yes' : 'No'}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Transcript */}
+                      {episode.transcript && (
+                        <div>
+                          <h4 className="text-sm font-medium text-foreground mb-2">Transcript</h4>
+                          <div className="max-h-40 overflow-y-auto bg-muted/30 p-3 rounded text-xs">
+                            <p className="whitespace-pre-wrap">{episode.transcript}</p>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Timestamps */}
+                      <div>
+                        <h4 className="text-sm font-medium text-foreground mb-2">Timestamps</h4>
+                        <div className="grid grid-cols-2 gap-4 text-xs">
+                          <div>
+                            <span className="font-medium text-muted-foreground">Created:</span>
+                            <p>{episode.created_at ? new Date(episode.created_at).toLocaleString() : 'Unknown'}</p>
+                          </div>
+                          <div>
+                            <span className="font-medium text-muted-foreground">Updated:</span>
+                            <p>{episode.updated_at ? new Date(episode.updated_at).toLocaleString() : 'Unknown'}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   )}
                   
+                  {/* Basic Stats */}
                   <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
                     {episode.episode_number && (
                       <span>Episode #{episode.episode_number}</span>
@@ -208,6 +303,7 @@ export const Episodes = () => {
                     )}
                   </div>
 
+                  {/* Issues */}
                   {episode.issues && episode.issues.length > 0 && (
                     <div className="flex flex-wrap gap-1">
                       {episode.issues.map((issue, index) => (
@@ -218,9 +314,14 @@ export const Episodes = () => {
                     </div>
                   )}
 
+                  {/* Action Buttons */}
                   <div className="flex items-center gap-2 pt-2">
-                    <Button variant="outline" size="sm">
-                      View Details
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => setExpandedEpisode(expandedEpisode === episode.id ? null : episode.id)}
+                    >
+                      {expandedEpisode === episode.id ? 'Hide Details' : 'View Details'}
                     </Button>
                     <Button variant="bloom" size="sm">
                       Optimize
