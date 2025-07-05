@@ -41,14 +41,17 @@ function extractTextContent(xml: string, tagName: string): string {
     const match = xml.match(pattern);
     if (match && match[1]) {
       let content = match[1].trim();
-      // Strip HTML tags if present
-      content = content.replace(/<[^>]*>/g, '');
-      // Decode HTML entities
+      // Only strip HTML tags for non-description content
+      if (tagName !== 'description' && tagName !== 'itunes:summary' && tagName !== 'content:encoded') {
+        content = content.replace(/<[^>]*>/g, '');
+      }
+      // Decode HTML entities regardless
       content = content.replace(/&lt;/g, '<')
                       .replace(/&gt;/g, '>')
                       .replace(/&amp;/g, '&')
                       .replace(/&quot;/g, '"')
-                      .replace(/&#39;/g, "'");
+                      .replace(/&#39;/g, "'")
+                      .replace(/&nbsp;/g, ' ');
       return content;
     }
   }
@@ -59,9 +62,9 @@ function extractTextContent(xml: string, tagName: string): string {
 function extractEpisodeDescription(xml: string): string {
   // Try multiple description tags in order of preference
   const descriptionTags = [
+    'content:encoded',    // Often contains the richest HTML content
     'itunes:summary',
     'description', 
-    'content:encoded',
     'itunes:subtitle',
     'summary'
   ];
@@ -69,8 +72,23 @@ function extractEpisodeDescription(xml: string): string {
   for (const tag of descriptionTags) {
     const description = extractTextContent(xml, tag);
     if (description && description.length > 0) {
-      console.log(`Found description using tag: ${tag}`);
-      return description;
+      console.log(`Found description using tag: ${tag}, length: ${description.length}`);
+      
+      // If content doesn't contain HTML tags, convert line breaks to HTML
+      if (!/<[^>]*>/.test(description)) {
+        return description
+          .split('\n\n')
+          .map(paragraph => paragraph.trim())
+          .filter(paragraph => paragraph.length > 0)
+          .map(paragraph => `<p>${paragraph.replace(/\n/g, '<br>')}</p>`)
+          .join('');
+      }
+      
+      // If it already contains HTML, return as-is (but clean up a bit)
+      return description
+        .replace(/\n\s*\n/g, '\n\n') // Normalize paragraph breaks
+        .replace(/\n/g, ' ')         // Convert single line breaks to spaces
+        .replace(/\s+/g, ' ');       // Normalize whitespace
     }
   }
   
