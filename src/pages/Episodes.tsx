@@ -3,7 +3,8 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Calendar, Clock, ExternalLink, Play } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { ArrowLeft, Calendar, Clock, ExternalLink, Play, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Tables } from "@/integrations/supabase/types";
@@ -18,6 +19,7 @@ export const Episodes = () => {
   const [channel, setChannel] = useState<Channel | null>(null);
   const [loading, setLoading] = useState(true);
   const [expandedEpisode, setExpandedEpisode] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
   const { toast } = useToast();
 
   useEffect(() => {
@@ -77,6 +79,26 @@ export const Episodes = () => {
     return `${mb.toFixed(1)} MB`;
   };
 
+  // Filter episodes based on search query
+  const filteredEpisodes = episodes.filter((episode) => {
+    if (!searchQuery.trim()) return true;
+    
+    const query = searchQuery.toLowerCase();
+    const searchableText = [
+      episode.title,
+      episode.description,
+      episode.ai_suggested_title,
+      episode.ai_suggested_description,
+      episode.transcript,
+      episode.external_id,
+      episode.issues?.join(' '),
+      episode.episode_number?.toString(),
+      episode.season_number?.toString(),
+    ].filter(Boolean).join(' ').toLowerCase();
+    
+    return searchableText.includes(query);
+  });
+
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -120,11 +142,23 @@ export const Episodes = () => {
         <Button variant="ghost" onClick={() => navigate("/")} className="p-2">
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <div>
+        <div className="flex-1">
           <h1 className="text-2xl font-bold">{channel.name}</h1>
           <p className="text-muted-foreground">
-            {episodes.length} episode{episodes.length !== 1 ? 's' : ''}
+            {filteredEpisodes.length} of {episodes.length} episode{episodes.length !== 1 ? 's' : ''}
+            {searchQuery && ` matching "${searchQuery}"`}
           </p>
+        </div>
+        
+        {/* Search Input */}
+        <div className="relative max-w-sm">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search episodes..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10"
+          />
         </div>
       </div>
 
@@ -145,9 +179,28 @@ export const Episodes = () => {
             </div>
           </CardContent>
         </Card>
+      ) : filteredEpisodes.length === 0 ? (
+        <Card className="shadow-soft border-border/50">
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <div className="text-center space-y-4">
+              <div className="mx-auto w-16 h-16 bg-muted rounded-full flex items-center justify-center">
+                <Search className="h-8 w-8 text-muted-foreground" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-foreground">No episodes found</h3>
+                <p className="text-muted-foreground">
+                  No episodes match your search for "{searchQuery}". Try different keywords.
+                </p>
+              </div>
+              <Button variant="outline" onClick={() => setSearchQuery("")}>
+                Clear Search
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       ) : (
         <div className="space-y-4">
-          {episodes.map((episode) => (
+          {filteredEpisodes.map((episode) => (
             <Card key={episode.id} className="shadow-soft border-border/50 hover:shadow-natural transition-shadow">
               <CardHeader>
                 <div className="flex items-start justify-between">
