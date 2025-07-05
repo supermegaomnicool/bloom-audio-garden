@@ -2,3 +2,6 @@ project_id = "cvzbkqkiqsznyidsohvn"
 
 [functions.import-rss]
 verify_jwt = false
+
+[functions.generate-suggestions]
+verify_jwt = true

@@ -7,7 +7,7 @@ import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Star, AlertTriangle, CheckCircle, TrendingUp, FileText, Clock, Users, X, Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, Star, AlertTriangle, CheckCircle, TrendingUp, FileText, Clock, Users, X, Eye, EyeOff, Sparkles, Upload, Image } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Tables } from "@/integrations/supabase/types";
@@ -29,6 +29,13 @@ interface EpisodeScore {
   issues: OptimizationIssue[];
 }
 
+interface AISuggestion {
+  id: string;
+  type: 'title' | 'description' | 'hook';
+  suggestions: string[];
+  loading: boolean;
+}
+
 export const ChannelOptimization = () => {
   const { channelId } = useParams<{ channelId: string }>();
   const navigate = useNavigate();
@@ -39,6 +46,7 @@ export const ChannelOptimization = () => {
   const [excludeDialog, setExcludeDialog] = useState<string | null>(null);
   const [exclusionNotes, setExclusionNotes] = useState("");
   const [showExcluded, setShowExcluded] = useState(false);
+  const [aiSuggestions, setAiSuggestions] = useState<Map<string, AISuggestion>>(new Map());
   const { toast } = useToast();
 
   useEffect(() => {
@@ -119,6 +127,117 @@ export const ChannelOptimization = () => {
       toast({
         title: "Error",
         description: "Failed to update episode status",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const generateSuggestions = async (episodeScore: EpisodeScore, suggestionType: 'title' | 'description' | 'hook') => {
+    const episode = episodeScore.episode;
+    const suggestionKey = `${episode.id}-${suggestionType}`;
+    
+    // Set loading state
+    setAiSuggestions(prev => new Map(prev.set(suggestionKey, {
+      id: suggestionKey,
+      type: suggestionType,
+      suggestions: [],
+      loading: true
+    })));
+
+    try {
+      let originalContent = '';
+      switch (suggestionType) {
+        case 'title':
+          originalContent = episode.title;
+          break;
+        case 'description':
+          originalContent = episode.description || '';
+          break;
+        case 'hook':
+          const desc = episode.description || '';
+          originalContent = desc.replace(/<[^>]*>/g, '').split('.')[0] || '';
+          break;
+      }
+
+      const { data, error } = await supabase.functions.invoke('generate-suggestions', {
+        body: {
+          episodeId: episode.id,
+          suggestionType,
+          originalContent,
+          episodeTitle: episode.title,
+          channelName: channel?.name || ''
+        }
+      });
+
+      if (error) throw error;
+
+      // Update suggestions state
+      setAiSuggestions(prev => new Map(prev.set(suggestionKey, {
+        id: suggestionKey,
+        type: suggestionType,
+        suggestions: data.suggestions || [],
+        loading: false
+      })));
+
+      if (data.saved) {
+        toast({
+          title: "Suggestions Generated",
+          description: `Generated ${data.suggestions?.length || 0} alternative ${suggestionType} suggestions`,
+        });
+      }
+    } catch (error) {
+      console.error('Error generating suggestions:', error);
+      setAiSuggestions(prev => new Map(prev.set(suggestionKey, {
+        id: suggestionKey,
+        type: suggestionType,
+        suggestions: [],
+        loading: false
+      })));
+      
+      toast({
+        title: "Error generating suggestions",
+        description: "Please try again later.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const generateTranscript = async (episode: Episode) => {
+    if (!episode.audio_url) {
+      toast({
+        title: "No audio file available",
+        description: "Cannot generate transcript without audio.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      toast({
+        title: "Generating transcript...",
+        description: "This may take a few minutes.",
+      });
+
+      const { data, error } = await supabase.functions.invoke('generate-transcript', {
+        body: { episodeId: episode.id }
+      });
+
+      if (error) throw error;
+
+      // Update local episode state
+      setEpisodes(prevEpisodes => prevEpisodes.map(ep => 
+        ep.id === episode.id ? { ...ep, transcript: data.transcript } : ep
+      ));
+
+      toast({
+        title: "Transcript generated successfully",
+        description: "The episode now has a transcript available.",
+      });
+    } catch (error) {
+      console.error('Error generating transcript:', error);
+      toast({
+        title: "Error generating transcript",
+        description: "Please try again later.",
         variant: "destructive",
       });
     }
@@ -490,6 +609,54 @@ export const ChannelOptimization = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
+                {/* Custom Artwork Display */}
+                {(episodeScore.episode.artwork_url || episodeScore.episode.has_custom_artwork) && (
+                  <div className="flex items-center gap-3 p-3 bg-muted/20 rounded-lg">
+                    <div className="flex-shrink-0">
+                      <img 
+                        src={episodeScore.episode.artwork_url || '/placeholder.svg'} 
+                        alt="Episode artwork"
+                        className="w-32 h-32 object-cover rounded-lg shadow-sm border border-border/50"
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <h5 className="text-sm font-medium flex items-center gap-2">
+                        <Image className="h-4 w-4" />
+                        Custom Episode Artwork
+                      </h5>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        This episode has custom artwork which can improve click-through rates
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Transcript Status and Upload */}
+                {!episodeScore.episode.transcript && (
+                  <div className="p-3 bg-orange-50 dark:bg-orange-900/10 border border-orange-200 dark:border-orange-800 rounded-lg">
+                    <div className="flex items-start gap-3">
+                      <Upload className="h-5 w-5 text-orange-600 flex-shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <h5 className="text-sm font-medium text-orange-800 dark:text-orange-200">
+                          Missing Transcript - Major SEO Opportunity
+                        </h5>
+                        <p className="text-xs text-orange-700 dark:text-orange-300 mt-1 mb-3">
+                          Generate a transcript to unlock detailed optimization suggestions and improve searchability
+                        </p>
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => generateTranscript(episodeScore.episode)}
+                          className="border-orange-300 text-orange-700 hover:bg-orange-50 dark:border-orange-700 dark:text-orange-300"
+                        >
+                          <Upload className="h-4 w-4 mr-2" />
+                          Generate Transcript
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Issues */}
                 {episodeScore.issues.length > 0 && (
                   <div>
@@ -505,7 +672,49 @@ export const ChannelOptimization = () => {
                               </Badge>
                               <span className="text-sm font-medium">{issue.message}</span>
                             </div>
-                            <p className="text-xs text-muted-foreground">{issue.suggestion}</p>
+                            <p className="text-xs text-muted-foreground mb-2">{issue.suggestion}</p>
+                            
+                            {/* AI Suggestion Buttons */}
+                            {(issue.category === 'Title' || issue.category === 'Description' || issue.category === 'Opening') && (
+                              <div className="flex gap-2 mt-2">
+                                {issue.category === 'Title' && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => generateSuggestions(episodeScore, 'title')}
+                                    disabled={aiSuggestions.get(`${episodeScore.episode.id}-title`)?.loading}
+                                    className="text-xs"
+                                  >
+                                    <Sparkles className="h-3 w-3 mr-1" />
+                                    {aiSuggestions.get(`${episodeScore.episode.id}-title`)?.loading ? 'Generating...' : 'Get Title Ideas'}
+                                  </Button>
+                                )}
+                                {issue.category === 'Description' && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => generateSuggestions(episodeScore, 'description')}
+                                    disabled={aiSuggestions.get(`${episodeScore.episode.id}-description`)?.loading}
+                                    className="text-xs"
+                                  >
+                                    <Sparkles className="h-3 w-3 mr-1" />
+                                    {aiSuggestions.get(`${episodeScore.episode.id}-description`)?.loading ? 'Generating...' : 'Get Description Ideas'}
+                                  </Button>
+                                )}
+                                {issue.category === 'Opening' && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => generateSuggestions(episodeScore, 'hook')}
+                                    disabled={aiSuggestions.get(`${episodeScore.episode.id}-hook`)?.loading}
+                                    className="text-xs"
+                                  >
+                                    <Sparkles className="h-3 w-3 mr-1" />
+                                    {aiSuggestions.get(`${episodeScore.episode.id}-hook`)?.loading ? 'Generating...' : 'Get Hook Ideas'}
+                                  </Button>
+                                )}
+                              </div>
+                            )}
                           </div>
                         </div>
                       ))}
@@ -513,11 +722,50 @@ export const ChannelOptimization = () => {
                   </div>
                 )}
 
+                {/* AI Suggestions Display */}
+                {Array.from(aiSuggestions.entries())
+                  .filter(([key]) => key.startsWith(episodeScore.episode.id))
+                  .map(([key, suggestion]) => (
+                    <div key={key} className="p-4 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/10 dark:to-purple-900/10 rounded-lg border border-blue-200 dark:border-blue-800">
+                      <h5 className="text-sm font-medium flex items-center gap-2 mb-3">
+                        <Sparkles className="h-4 w-4 text-blue-600" />
+                        AI-Generated {suggestion.type.charAt(0).toUpperCase() + suggestion.type.slice(1)} Suggestions
+                      </h5>
+                      
+                      {suggestion.loading ? (
+                        <div className="space-y-2">
+                          {[...Array(3)].map((_, i) => (
+                            <div key={i} className="h-4 bg-muted rounded animate-pulse"></div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {suggestion.suggestions.map((suggestionText, idx) => (
+                            <div 
+                              key={idx} 
+                              className="p-2 bg-white dark:bg-gray-800 rounded border border-border/50 text-sm cursor-pointer hover:bg-muted/50 transition-colors"
+                              onClick={() => {
+                                navigator.clipboard.writeText(suggestionText);
+                                toast({ title: "Copied to clipboard!", description: "Suggestion copied successfully" });
+                              }}
+                            >
+                              <span className="text-xs text-muted-foreground mr-2">#{idx + 1}</span>
+                              {suggestionText}
+                            </div>
+                          ))}
+                          <p className="text-xs text-muted-foreground mt-2">
+                            💡 Click any suggestion to copy it to your clipboard
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+
                 {/* Quick Stats */}
                 <div className="flex flex-wrap gap-4 text-xs text-muted-foreground pt-2 border-t">
                   <span>Description: {(episodeScore.episode.description?.replace(/<[^>]*>/g, '') || "").length} chars</span>
-                  {episodeScore.episode.transcript && <span>Has transcript</span>}
-                  {episodeScore.episode.has_custom_artwork && <span>Custom artwork</span>}
+                  {episodeScore.episode.transcript && <span>✅ Has transcript</span>}
+                  {episodeScore.episode.has_custom_artwork && <span>🎨 Custom artwork</span>}
                 </div>
               </div>
             </CardContent>

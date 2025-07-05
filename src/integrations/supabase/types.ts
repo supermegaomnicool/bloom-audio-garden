@@ -66,6 +66,47 @@ export type Database = {
         }
         Relationships: []
       }
+      episode_suggestions: {
+        Row: {
+          ai_suggestions: Json
+          created_at: string
+          episode_id: string
+          id: string
+          original_content: string | null
+          suggestion_type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ai_suggestions: Json
+          created_at?: string
+          episode_id: string
+          id?: string
+          original_content?: string | null
+          suggestion_type: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          ai_suggestions?: Json
+          created_at?: string
+          episode_id?: string
+          id?: string
+          original_content?: string | null
+          suggestion_type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "episode_suggestions_episode_id_fkey"
+            columns: ["episode_id"]
+            isOneToOne: false
+            referencedRelation: "episodes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       episodes: {
         Row: {
           ai_suggested_description: string | null
