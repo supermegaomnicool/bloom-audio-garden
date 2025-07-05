@@ -51,6 +51,8 @@ export const ChannelOptimization = () => {
   const [confirmGenerateDialog, setConfirmGenerateDialog] = useState<string | null>(null);
   const [transcriptDialog, setTranscriptDialog] = useState<string | null>(null);
   const [uploadingTranscript, setUploadingTranscript] = useState<string | null>(null);
+  const [contextDialog, setContextDialog] = useState<{episodeId: string, type: 'title' | 'description' | 'hook'} | null>(null);
+  const [additionalContext, setAdditionalContext] = useState("");
   const { toast } = useToast();
 
   useEffect(() => {
@@ -136,9 +138,20 @@ export const ChannelOptimization = () => {
     }
   };
 
-  const generateSuggestions = async (episodeScore: EpisodeScore, suggestionType: 'title' | 'description' | 'hook') => {
+  const generateSuggestions = async (episodeScore: EpisodeScore, suggestionType: 'title' | 'description' | 'hook', additionalContext?: string) => {
     const episode = episodeScore.episode;
     const suggestionKey = `${episode.id}-${suggestionType}`;
+    
+    // Check authentication first
+    const { data: currentUser, error: authError } = await supabase.auth.getUser();
+    if (authError || !currentUser.user) {
+      toast({
+        title: "Authentication Error",
+        description: "Please sign in to generate suggestions.",
+        variant: "destructive",
+      });
+      return;
+    }
     
     // Set loading state
     setAiSuggestions(prev => new Map(prev.set(suggestionKey, {
@@ -163,6 +176,11 @@ export const ChannelOptimization = () => {
           break;
       }
 
+      // Include additional context if provided
+      const contextualDescription = additionalContext 
+        ? `${episode.description || ''}\n\nAdditional Context: ${additionalContext}`
+        : episode.description || '';
+
       const { data, error } = await supabase.functions.invoke('generate-suggestions', {
         body: {
           episodeId: episode.id,
@@ -171,11 +189,19 @@ export const ChannelOptimization = () => {
           episodeTitle: episode.title,
           channelName: channel?.name || '',
           transcript: episode.transcript || null,
-          episodeDescription: episode.description || ''
+          episodeDescription: contextualDescription,
+          additionalContext: additionalContext || null
         }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Edge function error:', error);
+        throw error;
+      }
+
+      if (!data || !data.suggestions) {
+        throw new Error('No suggestions returned from AI');
+      }
 
       // Update suggestions state
       setAiSuggestions(prev => new Map(prev.set(suggestionKey, {
@@ -185,12 +211,11 @@ export const ChannelOptimization = () => {
         loading: false
       })));
 
-      if (data.saved) {
-        toast({
-          title: "Suggestions Generated",
-          description: `Generated ${data.suggestions?.length || 0} alternative ${suggestionType} suggestions`,
-        });
-      }
+      toast({
+        title: "Suggestions Generated",
+        description: `Generated ${data.suggestions?.length || 0} alternative ${suggestionType} suggestions`,
+      });
+      
     } catch (error) {
       console.error('Error generating suggestions:', error);
       setAiSuggestions(prev => new Map(prev.set(suggestionKey, {
@@ -200,9 +225,19 @@ export const ChannelOptimization = () => {
         loading: false
       })));
       
+      // More specific error messages
+      let errorMessage = "Please try again later.";
+      if (error.message?.includes('authentication') || error.message?.includes('auth')) {
+        errorMessage = "Authentication failed. Please refresh the page and try again.";
+      } else if (error.message?.includes('OpenAI')) {
+        errorMessage = "AI service temporarily unavailable. Please try again in a few minutes.";
+      } else if (error.message?.includes('FunctionsHttpError')) {
+        errorMessage = `Service error occurred. Error details: ${error.message}`;
+      }
+      
       toast({
         title: "Error generating suggestions",
-        description: "Please try again later.",
+        description: errorMessage,
         variant: "destructive",
       });
     }
@@ -934,7 +969,7 @@ export const ChannelOptimization = () => {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => generateSuggestions(episodeScore, 'title')}
+                        onClick={() => setContextDialog({episodeId: episodeScore.episode.id, type: 'title'})}
                         disabled={aiSuggestions.get(`${episodeScore.episode.id}-title`)?.loading}
                         className="text-xs mt-2"
                       >
@@ -949,7 +984,7 @@ export const ChannelOptimization = () => {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => generateSuggestions(episodeScore, 'description')}
+                        onClick={() => setContextDialog({episodeId: episodeScore.episode.id, type: 'description'})}
                         disabled={aiSuggestions.get(`${episodeScore.episode.id}-description`)?.loading}
                         className="text-xs mt-2"
                       >
@@ -966,7 +1001,7 @@ export const ChannelOptimization = () => {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => generateSuggestions(episodeScore, 'hook')}
+                        onClick={() => setContextDialog({episodeId: episodeScore.episode.id, type: 'hook'})}
                         disabled={aiSuggestions.get(`${episodeScore.episode.id}-hook`)?.loading}
                         className="text-xs mt-2"
                       >
@@ -1152,6 +1187,73 @@ export const ChannelOptimization = () => {
                 disabled={uploadingTranscript === transcriptDialog}
               >
                 Cancel
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Additional Context Dialog */}
+      {contextDialog && (
+        <Dialog open={!!contextDialog} onOpenChange={(open) => {
+          if (!open) {
+            setContextDialog(null);
+            setAdditionalContext("");
+          }
+        }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Add Context for AI Suggestions</DialogTitle>
+              <DialogDescription>
+                Provide additional context to help the AI generate better {contextDialog.type} suggestions for this episode.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="additional-context">Additional Context (Optional)</Label>
+                <Textarea
+                  id="additional-context"
+                  placeholder={`e.g., ${
+                    contextDialog.type === 'title' 
+                      ? 'This episode focuses on advanced strategies, includes guest expert John Smith, covers breaking news about...'
+                      : contextDialog.type === 'description'
+                      ? 'Key topics discussed include..., important timestamps are..., target audience is...'
+                      : 'The opening should emphasize the controversial take, the surprising statistics mentioned, or the actionable insight...'
+                  }`}
+                  value={additionalContext}
+                  onChange={(e) => setAdditionalContext(e.target.value)}
+                  className="mt-2"
+                  rows={4}
+                />
+                <p className="text-xs text-muted-foreground mt-2">
+                  The more specific context you provide, the better the AI suggestions will be. Include key topics, guest names, important points, target audience, or any special focus areas.
+                </p>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setContextDialog(null);
+                  setAdditionalContext("");
+                }}
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={() => {
+                  if (contextDialog) {
+                    const episodeScore = episodeScores.find(es => es.episode.id === contextDialog.episodeId);
+                    if (episodeScore) {
+                      generateSuggestions(episodeScore, contextDialog.type, additionalContext || undefined);
+                    }
+                    setContextDialog(null);
+                    setAdditionalContext("");
+                  }
+                }}
+              >
+                <Sparkles className="h-4 w-4 mr-2" />
+                Generate Suggestions
               </Button>
             </DialogFooter>
           </DialogContent>
