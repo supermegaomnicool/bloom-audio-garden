@@ -276,7 +276,7 @@ export const Episodes = () => {
       }
 
       // Update local state
-      setEpisodes(episodes.map(episode => 
+      setEpisodes(prevEpisodes => prevEpisodes.map(episode => 
         episode.id === episodeId 
           ? { ...episode, transcript }
           : episode
@@ -409,7 +409,9 @@ export const Episodes = () => {
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <CardTitle className="text-lg line-clamp-2">{episode.title}</CardTitle>
+                    <CardTitle className="text-lg line-clamp-2">
+                      {episode.episode_number && `#${episode.episode_number} - `}{episode.title}
+                    </CardTitle>
                     <CardDescription className="flex items-center gap-2 mt-2">
                       {episode.published_at && (
                         <span className="flex items-center gap-1 text-xs">
