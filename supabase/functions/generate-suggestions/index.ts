@@ -170,17 +170,28 @@ Return only a JSON array of 5 opening sentence strings, no other text.`;
     
     let suggestions;
     try {
-      suggestions = JSON.parse(generatedText);
+      // Clean the response text by removing markdown code blocks
+      let cleanedText = generatedText.trim();
+      if (cleanedText.startsWith('```json')) {
+        cleanedText = cleanedText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+      }
+      if (cleanedText.startsWith('```')) {
+        cleanedText = cleanedText.replace(/^```\s*/, '').replace(/\s*```$/, '');
+      }
+      
+      suggestions = JSON.parse(cleanedText);
       if (!Array.isArray(suggestions) || suggestions.length === 0) {
         throw new Error('Invalid response format');
       }
     } catch (parseError) {
       console.error('Failed to parse AI response:', generatedText);
-      // Fallback: try to extract suggestions from text
+      // Fallback: try to extract suggestions from text, excluding markdown markers
       suggestions = generatedText.split('\n')
         .filter(line => line.trim().length > 0)
+        .filter(line => !line.trim().startsWith('```') && !line.trim().startsWith('[') && !line.trim().startsWith(']'))
         .slice(0, 5)
-        .map(line => line.replace(/^\d+\.\s*/, '').replace(/^[-*]\s*/, '').trim());
+        .map(line => line.replace(/^\d+\.\s*/, '').replace(/^[-*]\s*/, '').replace(/^["']|["']$/g, '').trim())
+        .filter(line => line.length > 0);
     }
 
     // Get current user from auth header
