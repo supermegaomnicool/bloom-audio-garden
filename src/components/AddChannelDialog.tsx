@@ -36,8 +36,8 @@ export const AddChannelDialog = ({ open, onOpenChange }: AddChannelDialogProps) 
           name: formData.name,
           type: channelType,
           url: formData.url,
-          description: formData.description,
-          user_id: "00000000-0000-0000-0000-000000000000" // Temporary UUID until auth is implemented
+          user_notes: formData.description, // Save user input as notes
+          user_id: "00000000-0000-0000-0000-000000000000"
         })
         .select()
         .single();

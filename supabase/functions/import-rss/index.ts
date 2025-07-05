@@ -122,9 +122,10 @@ serve(async (req) => {
     const { error: channelUpdateError } = await supabase
       .from('channels')
       .update({
+        name: channelInfo.name, // Update with official RSS name
         artwork_url: channelInfo.artwork_url,
         artwork_storage_path: channelArtworkPath,
-        description: channelInfo.description,
+        description: channelInfo.description, // Official RSS description
         last_imported_at: new Date().toISOString()
       })
       .eq('id', channel_id);
@@ -164,6 +165,21 @@ serve(async (req) => {
     }
 
     console.log(`Processed ${episodes.length} episodes`);
+
+    // Debug: Log first few episodes
+    if (episodes.length > 0) {
+      console.log('Sample episodes:');
+      episodes.slice(0, 2).forEach((ep, i) => {
+        console.log(`Episode ${i + 1}:`, {
+          title: ep.title,
+          external_id: ep.external_id,
+          audio_url: ep.audio_url,
+          duration: ep.duration
+        });
+      });
+    } else {
+      console.log('No episodes found! Raw XML sample:', rssText.substring(0, 500));
+    }
 
     // Store episodes in database
     let episodesProcessed = 0;

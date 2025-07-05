@@ -26,6 +26,7 @@ export type Database = {
           updated_at: string | null
           url: string
           user_id: string
+          user_notes: string | null
         }
         Insert: {
           artwork_storage_path?: string | null
@@ -43,6 +44,7 @@ export type Database = {
           updated_at?: string | null
           url: string
           user_id: string
+          user_notes?: string | null
         }
         Update: {
           artwork_storage_path?: string | null
@@ -60,6 +62,7 @@ export type Database = {
           updated_at?: string | null
           url?: string
           user_id?: string
+          user_notes?: string | null
         }
         Relationships: []
       }

@@ -2,8 +2,10 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Youtube, Video, Users, Calendar, TrendingUp, ExternalLink, RefreshCw, Trash2 } from "lucide-react";
+import { Youtube, Video, Users, Calendar, TrendingUp, ExternalLink, RefreshCw, Trash2, Edit3, Save, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Tables } from "@/integrations/supabase/types";
@@ -14,6 +16,8 @@ export const ChannelList = () => {
   const [channels, setChannels] = useState<Channel[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncingChannels, setSyncingChannels] = useState<Set<string>>(new Set());
+  const [editingNotes, setEditingNotes] = useState<string | null>(null);
+  const [editingNotesValue, setEditingNotesValue] = useState("");
   const { toast } = useToast();
 
   useEffect(() => {
@@ -127,6 +131,51 @@ export const ChannelList = () => {
     }
   };
 
+  const handleEditNotes = (channelId: string, currentNotes: string) => {
+    setEditingNotes(channelId);
+    setEditingNotesValue(currentNotes || "");
+  };
+
+  const handleSaveNotes = async (channelId: string) => {
+    try {
+      const { error } = await supabase
+        .from("channels")
+        .update({ user_notes: editingNotesValue })
+        .eq("id", channelId);
+
+      if (error) {
+        throw error;
+      }
+
+      // Update local state
+      setChannels(channels.map(channel => 
+        channel.id === channelId 
+          ? { ...channel, user_notes: editingNotesValue }
+          : channel
+      ));
+
+      setEditingNotes(null);
+      setEditingNotesValue("");
+
+      toast({
+        title: "Notes updated",
+        description: "Your notes have been saved successfully.",
+      });
+    } catch (error) {
+      console.error("Error saving notes:", error);
+      toast({
+        title: "Error saving notes",
+        description: "Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingNotes(null);
+    setEditingNotesValue("");
+  };
+
   if (loading) {
     return (
       <div className="space-y-4">
@@ -200,11 +249,69 @@ export const ChannelList = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
+              {/* Official RSS Description */}
               {channel.description && (
-                <p className="text-sm text-muted-foreground line-clamp-2">
-                  {channel.description}
-                </p>
+                <div>
+                  <h4 className="text-sm font-medium text-foreground mb-1">Official Description</h4>
+                  <p className="text-sm text-muted-foreground line-clamp-3">
+                    {channel.description}
+                  </p>
+                </div>
               )}
+
+              {/* User Notes Section */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-sm font-medium text-foreground">Your Notes</h4>
+                  {editingNotes !== channel.id && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleEditNotes(channel.id, channel.user_notes || "")}
+                      className="h-6 px-2"
+                    >
+                      <Edit3 className="h-3 w-3 mr-1" />
+                      Edit
+                    </Button>
+                  )}
+                </div>
+                
+                {editingNotes === channel.id ? (
+                  <div className="space-y-2">
+                    <Textarea
+                      value={editingNotesValue}
+                      onChange={(e) => setEditingNotesValue(e.target.value)}
+                      placeholder="Add your notes about this channel..."
+                      rows={3}
+                      className="text-sm"
+                    />
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleSaveNotes(channel.id)}
+                        className="h-7 px-3"
+                      >
+                        <Save className="h-3 w-3 mr-1" />
+                        Save
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleCancelEdit}
+                        className="h-7 px-3"
+                      >
+                        <X className="h-3 w-3 mr-1" />
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground line-clamp-2">
+                    {channel.user_notes || "No notes added yet. Click edit to add your notes."}
+                  </p>
+                )}
+              </div>
               
               <div className="grid grid-cols-3 gap-4 text-sm">
                 <div className="flex items-center gap-2">
