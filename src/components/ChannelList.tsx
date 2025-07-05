@@ -224,27 +224,27 @@ export const ChannelList = () => {
         <Card key={channel.id} className="shadow-soft border-border/50 hover:shadow-natural transition-shadow relative">
           <CardHeader>
             <div className="flex items-start justify-between">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-4">
                 {channel.artwork_url ? (
-                  <Avatar className="h-10 w-10">
-                    <AvatarImage src={channel.artwork_url} alt={`${channel.name} artwork`} />
-                    <AvatarFallback>
+                  <Avatar className="h-16 w-16 rounded-lg">
+                    <AvatarImage src={channel.artwork_url} alt={`${channel.name} artwork`} className="object-cover" />
+                    <AvatarFallback className="rounded-lg">
                       {channel.type === "youtube" ? (
-                        <Youtube className="h-5 w-5 text-red-500" />
+                        <Youtube className="h-6 w-6 text-red-500" />
                       ) : (
-                        <Video className="h-5 w-5 text-primary" />
+                        <Video className="h-6 w-6 text-primary" />
                       )}
                     </AvatarFallback>
                   </Avatar>
                 ) : (
                   channel.type === "youtube" ? (
-                    <Youtube className="h-5 w-5 text-red-500" />
+                    <Youtube className="h-6 w-6 text-red-500" />
                   ) : (
-                    <Video className="h-5 w-5 text-primary" />
+                    <Video className="h-6 w-6 text-primary" />
                   )
                 )}
                 <div>
-                  <CardTitle className="text-lg">{channel.name}</CardTitle>
+                  <CardTitle className="text-xl font-semibold">{channel.name}</CardTitle>
                   <div className="flex items-center gap-2 mt-1">
                     <Badge variant="secondary" className="text-xs">
                       {channel.type.toUpperCase()}
