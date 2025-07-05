@@ -11,6 +11,8 @@ export type Database = {
     Tables: {
       channels: {
         Row: {
+          artwork_storage_path: string | null
+          artwork_url: string | null
           avg_optimization_score: number | null
           created_at: string | null
           description: string | null
@@ -26,6 +28,8 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          artwork_storage_path?: string | null
+          artwork_url?: string | null
           avg_optimization_score?: number | null
           created_at?: string | null
           description?: string | null
@@ -41,6 +45,8 @@ export type Database = {
           user_id: string
         }
         Update: {
+          artwork_storage_path?: string | null
+          artwork_url?: string | null
           avg_optimization_score?: number | null
           created_at?: string | null
           description?: string | null
@@ -61,16 +67,23 @@ export type Database = {
         Row: {
           ai_suggested_description: string | null
           ai_suggested_title: string | null
+          artwork_storage_path: string | null
+          artwork_url: string | null
+          audio_url: string | null
           channel_id: string
           created_at: string | null
           description: string | null
           download_count: number | null
           duration: string | null
+          episode_number: number | null
           external_id: string | null
+          file_size: number | null
+          has_custom_artwork: boolean | null
           id: string
           issues: string[] | null
           optimization_score: number | null
           published_at: string | null
+          season_number: number | null
           title: string
           transcript: string | null
           updated_at: string | null
@@ -80,16 +93,23 @@ export type Database = {
         Insert: {
           ai_suggested_description?: string | null
           ai_suggested_title?: string | null
+          artwork_storage_path?: string | null
+          artwork_url?: string | null
+          audio_url?: string | null
           channel_id: string
           created_at?: string | null
           description?: string | null
           download_count?: number | null
           duration?: string | null
+          episode_number?: number | null
           external_id?: string | null
+          file_size?: number | null
+          has_custom_artwork?: boolean | null
           id?: string
           issues?: string[] | null
           optimization_score?: number | null
           published_at?: string | null
+          season_number?: number | null
           title: string
           transcript?: string | null
           updated_at?: string | null
@@ -99,16 +119,23 @@ export type Database = {
         Update: {
           ai_suggested_description?: string | null
           ai_suggested_title?: string | null
+          artwork_storage_path?: string | null
+          artwork_url?: string | null
+          audio_url?: string | null
           channel_id?: string
           created_at?: string | null
           description?: string | null
           download_count?: number | null
           duration?: string | null
+          episode_number?: number | null
           external_id?: string | null
+          file_size?: number | null
+          has_custom_artwork?: boolean | null
           id?: string
           issues?: string[] | null
           optimization_score?: number | null
           published_at?: string | null
+          season_number?: number | null
           title?: string
           transcript?: string | null
           updated_at?: string | null

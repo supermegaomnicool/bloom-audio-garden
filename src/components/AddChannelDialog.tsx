@@ -29,9 +29,8 @@ export const AddChannelDialog = ({ open, onOpenChange }: AddChannelDialogProps) 
     setLoading(true);
 
     try {
-      // For now, we'll just insert the basic channel info
-      // Later we can add the import logic for fetching episodes
-      const { error } = await supabase
+      // First, insert the basic channel info
+      const { data: channelData, error: channelError } = await supabase
         .from("channels")
         .insert({
           name: formData.name,
@@ -39,16 +38,46 @@ export const AddChannelDialog = ({ open, onOpenChange }: AddChannelDialogProps) 
           url: formData.url,
           description: formData.description,
           user_id: "temp-user-id" // We'll need to handle auth later
-        });
+        })
+        .select()
+        .single();
 
-      if (error) {
-        throw error;
+      if (channelError) {
+        throw channelError;
       }
 
       toast({
         title: "Channel added successfully!",
-        description: "Your channel has been added. We'll start importing episodes soon.",
+        description: "Starting RSS import...",
       });
+
+      // If it's a podcast, trigger RSS import
+      if (channelType === "podcast" && channelData) {
+        try {
+          const { error: importError } = await supabase.functions.invoke('import-rss', {
+            body: {
+              rss_url: formData.url,
+              channel_id: channelData.id
+            }
+          });
+
+          if (importError) {
+            throw importError;
+          }
+
+          toast({
+            title: "RSS import completed!",
+            description: "All episodes and artwork have been imported successfully.",
+          });
+        } catch (importError) {
+          console.error("RSS import error:", importError);
+          toast({
+            title: "RSS import failed",
+            description: "Channel was created but episode import failed. You can retry the import later.",
+            variant: "destructive",
+          });
+        }
+      }
 
       // Reset form
       setFormData({ name: "", url: "", description: "" });

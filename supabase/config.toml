@@ -1,1 +1,4 @@
 project_id = "cvzbkqkiqsznyidsohvn"
+
+[functions.import-rss]
+verify_jwt = false
