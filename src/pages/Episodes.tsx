@@ -774,15 +774,21 @@ export const Episodes = () => {
                       </DialogContent>
                     </Dialog>
                     
+                    {/* Individual Episode Optimize Button */}
                     <Button 
                       variant="bloom" 
                       size="sm"
                       onClick={() => {
-                        console.log('Optimize button clicked, channelId:', channelId);
-                        navigate(`/optimize/${channelId}`);
+                        if (episode.transcript) {
+                          // Deep optimization with transcript content
+                          navigate(`/optimize/${channelId}?episode=${episode.id}&deep=true`);
+                        } else {
+                          // Basic optimization without transcript
+                          navigate(`/optimize/${channelId}?episode=${episode.id}`);
+                        }
                       }}
                     >
-                      Optimize
+                      {episode.transcript ? '🔍 Deep Optimize' : '⚡ Basic Optimize'}
                     </Button>
                   </div>
                 </div>

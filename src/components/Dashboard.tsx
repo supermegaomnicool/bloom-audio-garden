@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -8,6 +9,7 @@ import { ChannelList } from "./ChannelList";
 import { AddChannelDialog } from "./AddChannelDialog";
 
 export const Dashboard = () => {
+  const navigate = useNavigate();
   const [showAddChannel, setShowAddChannel] = useState(false);
 
   return (
@@ -110,6 +112,13 @@ export const Dashboard = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                <Button 
+                  onClick={() => navigate("/optimize")}
+                  variant="bloom" 
+                  className="w-full justify-start"
+                >
+                  🎯 Optimize All Episodes
+                </Button>
                 <Button 
                   onClick={() => setShowAddChannel(true)}
                   variant="outline" 

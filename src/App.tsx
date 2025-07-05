@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import { Episodes } from "./pages/Episodes";
 import { ChannelOptimization } from "./pages/ChannelOptimization";
+import { GlobalOptimization } from "./pages/GlobalOptimization";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -19,6 +20,7 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/episodes/:channelId" element={<Episodes />} />
+          <Route path="/optimize" element={<GlobalOptimization />} />
           <Route path="/optimize/:channelId" element={<ChannelOptimization />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
