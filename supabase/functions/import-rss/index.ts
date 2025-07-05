@@ -239,7 +239,7 @@ serve(async (req) => {
             audio_url: episode.audio_url,
             artwork_url: episode.artwork_url,
             artwork_storage_path: episodeArtworkPath,
-            has_custom_artwork: hasCustomArtwork,
+            has_custom_artwork: Boolean(hasCustomArtwork),
             episode_number: episode.episode_number,
             season_number: episode.season_number,
             external_id: episode.external_id,
