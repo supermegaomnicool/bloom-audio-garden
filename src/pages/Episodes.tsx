@@ -4,7 +4,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Calendar, Clock, ExternalLink, Play, Search } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { ArrowLeft, Calendar, Clock, ExternalLink, Play, Search, FileText, Upload, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Tables } from "@/integrations/supabase/types";
@@ -20,6 +22,9 @@ export const Episodes = () => {
   const [loading, setLoading] = useState(true);
   const [expandedEpisode, setExpandedEpisode] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [transcriptDialog, setTranscriptDialog] = useState<string | null>(null);
+  const [generatingTranscript, setGeneratingTranscript] = useState<Set<string>>(new Set());
+  const [uploadingTranscript, setUploadingTranscript] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -98,6 +103,161 @@ export const Episodes = () => {
     
     return searchableText.includes(query);
   });
+
+  const handleGenerateTranscript = async (episodeId: string, episodeTitle: string) => {
+    setGeneratingTranscript(prev => new Set([...prev, episodeId]));
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-transcript', {
+        body: { episodeId }
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      toast({
+        title: "Transcript Generated",
+        description: `Transcript for "${episodeTitle}" has been generated successfully.`,
+      });
+
+      // Refresh episodes to show updated transcript
+      await fetchChannelAndEpisodes();
+      
+    } catch (error) {
+      console.error("Error generating transcript:", error);
+      toast({
+        title: "Error Generating Transcript",
+        description: "Please try again later.",
+        variant: "destructive",
+      });
+    } finally {
+      setGeneratingTranscript(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(episodeId);
+        return newSet;
+      });
+    }
+  };
+
+  const parseSRT = (content: string): string => {
+    // Parse SRT format and extract text
+    const lines = content.split('\n');
+    const textLines: string[] = [];
+    let isTextLine = false;
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed === '') {
+        isTextLine = false;
+      } else if (/^\d+$/.test(trimmed)) {
+        // Subtitle number
+        isTextLine = false;
+      } else if (/^\d{2}:\d{2}:\d{2},\d{3} --> \d{2}:\d{2}:\d{2},\d{3}$/.test(trimmed)) {
+        // Timestamp line
+        isTextLine = true;
+      } else if (isTextLine) {
+        // Text content
+        textLines.push(trimmed);
+      }
+    }
+
+    return textLines.join(' ');
+  };
+
+  const parseVTT = (content: string): string => {
+    // Parse VTT format and extract text
+    const lines = content.split('\n');
+    const textLines: string[] = [];
+    let inContent = false;
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed === 'WEBVTT' || trimmed.startsWith('NOTE')) {
+        continue;
+      } else if (trimmed === '') {
+        inContent = false;
+      } else if (/^\d{2}:\d{2}:\d{2}\.\d{3} --> \d{2}:\d{2}:\d{2}\.\d{3}/.test(trimmed)) {
+        // Timestamp line
+        inContent = true;
+      } else if (inContent && !trimmed.match(/^<v\s+/)) {
+        // Text content (skip speaker labels like <v Speaker>)
+        const cleanText = trimmed.replace(/<[^>]*>/g, '').trim();
+        if (cleanText) {
+          textLines.push(cleanText);
+        }
+      }
+    }
+
+    return textLines.join(' ');
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>, episodeId: string) => {
+    const file = event.target.files?.[0];
+    if (!file || !episodeId) return;
+
+    const allowedTypes = ['text/plain', 'application/x-subrip', '.srt', '.vtt'];
+    const fileExtension = file.name.toLowerCase().split('.').pop();
+    
+    if (!['txt', 'srt', 'vtt'].includes(fileExtension || '')) {
+      toast({
+        title: "Invalid File Type",
+        description: "Please upload a TXT, SRT, or VTT file.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setUploadingTranscript(episodeId);
+
+    try {
+      const content = await file.text();
+      let transcript = content;
+
+      // Parse different formats
+      if (fileExtension === 'srt') {
+        transcript = parseSRT(content);
+      } else if (fileExtension === 'vtt') {
+        transcript = parseVTT(content);
+      }
+
+      // Update episode with transcript
+      const { error } = await supabase
+        .from('episodes')
+        .update({ transcript })
+        .eq('id', episodeId);
+
+      if (error) {
+        throw error;
+      }
+
+      // Update local state
+      setEpisodes(episodes.map(episode => 
+        episode.id === episodeId 
+          ? { ...episode, transcript }
+          : episode
+      ));
+
+      setTranscriptDialog(null);
+      
+      toast({
+        title: "Transcript Imported",
+        description: `Transcript from ${file.name} has been imported successfully.`,
+      });
+
+    } catch (error) {
+      console.error("Error uploading transcript:", error);
+      toast({
+        title: "Error Importing Transcript",
+        description: "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setUploadingTranscript(null);
+      // Reset file input
+      event.target.value = '';
+    }
+  };
 
   if (loading) {
     return (
@@ -376,6 +536,69 @@ export const Episodes = () => {
                     >
                       {expandedEpisode === episode.id ? 'Hide Details' : 'View Details'}
                     </Button>
+                    
+                    {/* Transcript Actions */}
+                    {episode.audio_url && !episode.transcript && (
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => handleGenerateTranscript(episode.id, episode.title)}
+                        disabled={generatingTranscript.has(episode.id)}
+                        className="min-w-[140px]"
+                      >
+                        {generatingTranscript.has(episode.id) ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Generating...
+                          </>
+                        ) : (
+                          <>
+                            <FileText className="h-4 w-4 mr-2" />
+                            Generate Transcript
+                          </>
+                        )}
+                      </Button>
+                    )}
+                    
+                    <Dialog open={transcriptDialog === episode.id} onOpenChange={(open) => setTranscriptDialog(open ? episode.id : null)}>
+                      <DialogTrigger asChild>
+                        <Button variant="outline" size="sm">
+                          <Upload className="h-4 w-4 mr-2" />
+                          Import Transcript
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Import Transcript</DialogTitle>
+                          <DialogDescription>
+                            Upload a transcript file for "{episode.title}". Supported formats: TXT, SRT, VTT
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="grid w-full max-w-sm items-center gap-1.5">
+                          <Label htmlFor="transcript-file">Transcript File</Label>
+                          <Input
+                            id="transcript-file"
+                            type="file"
+                            accept=".txt,.srt,.vtt"
+                            onChange={(e) => handleFileUpload(e, episode.id)}
+                            disabled={uploadingTranscript === episode.id}
+                          />
+                          <p className="text-sm text-muted-foreground">
+                            TXT: Plain text • SRT: SubRip subtitles • VTT: WebVTT subtitles
+                          </p>
+                        </div>
+                        <DialogFooter>
+                          <Button 
+                            variant="outline" 
+                            onClick={() => setTranscriptDialog(null)}
+                            disabled={uploadingTranscript === episode.id}
+                          >
+                            Cancel
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+                    
                     <Button variant="bloom" size="sm">
                       Optimize
                     </Button>
