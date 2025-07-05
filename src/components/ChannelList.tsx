@@ -2,8 +2,10 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Youtube, Video, Users, Calendar, TrendingUp, ExternalLink } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Youtube, Video, Users, Calendar, TrendingUp, ExternalLink, RefreshCw, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 import { Tables } from "@/integrations/supabase/types";
 
 type Channel = Tables<"channels">;
@@ -11,6 +13,8 @@ type Channel = Tables<"channels">;
 export const ChannelList = () => {
   const [channels, setChannels] = useState<Channel[]>([]);
   const [loading, setLoading] = useState(true);
+  const [syncingChannels, setSyncingChannels] = useState<Set<string>>(new Set());
+  const { toast } = useToast();
 
   useEffect(() => {
     fetchChannels();
@@ -25,14 +29,101 @@ export const ChannelList = () => {
 
       if (error) {
         console.error("Error fetching channels:", error);
+        toast({
+          title: "Error loading channels",
+          description: "Please refresh the page to try again.",
+          variant: "destructive",
+        });
         return;
       }
 
       setChannels(data || []);
     } catch (error) {
       console.error("Error:", error);
+      toast({
+        title: "Error loading channels",
+        description: "Please refresh the page to try again.",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteChannel = async (channelId: string, channelName: string) => {
+    try {
+      // Delete episodes first (due to foreign key relationship)
+      const { error: episodesError } = await supabase
+        .from("episodes")
+        .delete()
+        .eq("channel_id", channelId);
+
+      if (episodesError) {
+        throw episodesError;
+      }
+
+      // Delete the channel
+      const { error: channelError } = await supabase
+        .from("channels")
+        .delete()
+        .eq("id", channelId);
+
+      if (channelError) {
+        throw channelError;
+      }
+
+      // Remove from state
+      setChannels(channels.filter(channel => channel.id !== channelId));
+
+      toast({
+        title: "Channel deleted",
+        description: `${channelName} and all its episodes have been removed.`,
+      });
+    } catch (error) {
+      console.error("Error deleting channel:", error);
+      toast({
+        title: "Error deleting channel",
+        description: "Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleSyncChannel = async (channelId: string, channelName: string, rssUrl: string) => {
+    setSyncingChannels(prev => new Set([...prev, channelId]));
+    
+    try {
+      const { error } = await supabase.functions.invoke('import-rss', {
+        body: {
+          rss_url: rssUrl,
+          channel_id: channelId
+        }
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      toast({
+        title: "Sync completed",
+        description: `${channelName} has been synchronized with new episodes.`,
+      });
+
+      // Refresh the channels list to show updated stats
+      await fetchChannels();
+    } catch (error) {
+      console.error("Sync error:", error);
+      toast({
+        title: "Sync failed",
+        description: "Please try again later.",
+        variant: "destructive",
+      });
+    } finally {
+      setSyncingChannels(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(channelId);
+        return newSet;
+      });
     }
   };
 
@@ -146,9 +237,43 @@ export const ChannelList = () => {
                 <Button variant="outline" size="sm">
                   View Episodes
                 </Button>
-                <Button variant="outline" size="sm">
-                  Sync Now
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => handleSyncChannel(channel.id, channel.name, channel.url)}
+                  disabled={syncingChannels.has(channel.id)}
+                  className="min-w-[90px]"
+                >
+                  <RefreshCw className={`h-4 w-4 mr-2 ${syncingChannels.has(channel.id) ? 'animate-spin' : ''}`} />
+                  {syncingChannels.has(channel.id) ? 'Syncing...' : 'Sync Now'}
                 </Button>
+                
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="outline" size="sm" className="text-destructive hover:text-destructive">
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete Channel</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Are you sure you want to delete "{channel.name}"? This action will permanently remove the channel and all its episodes. This action cannot be undone.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => handleDeleteChannel(channel.id, channel.name)}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        Delete Channel
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+
                 <Button variant="bloom" size="sm">
                   Optimize
                 </Button>
