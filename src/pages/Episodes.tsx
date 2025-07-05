@@ -184,9 +184,10 @@ export const Episodes = () => {
               <CardContent>
                 <div className="space-y-4">
                   {episode.description && (
-                    <p className="text-sm text-muted-foreground line-clamp-3">
-                      {episode.description}
-                    </p>
+                    <div 
+                      className="text-sm text-muted-foreground line-clamp-3 prose prose-sm max-w-none prose-p:my-2 prose-a:text-primary prose-strong:text-foreground"
+                      dangerouslySetInnerHTML={{ __html: episode.description }}
+                    />
                   )}
                   
                   <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
