@@ -774,7 +774,11 @@ export const Episodes = () => {
                       </DialogContent>
                     </Dialog>
                     
-                    <Button variant="bloom" size="sm">
+                    <Button 
+                      variant="bloom" 
+                      size="sm"
+                      onClick={() => navigate(`/optimize/${channelId}`)}
+                    >
                       Optimize
                     </Button>
                   </div>
