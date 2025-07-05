@@ -73,6 +73,7 @@ export type Database = {
           episode_id: string
           id: string
           original_content: string | null
+          saved_suggestions: number[] | null
           suggestion_type: string
           updated_at: string
           user_id: string
@@ -83,6 +84,7 @@ export type Database = {
           episode_id: string
           id?: string
           original_content?: string | null
+          saved_suggestions?: number[] | null
           suggestion_type: string
           updated_at?: string
           user_id: string
@@ -93,6 +95,7 @@ export type Database = {
           episode_id?: string
           id?: string
           original_content?: string | null
+          saved_suggestions?: number[] | null
           suggestion_type?: string
           updated_at?: string
           user_id?: string

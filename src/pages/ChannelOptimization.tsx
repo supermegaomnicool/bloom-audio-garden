@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { ArrowLeft, Star, AlertTriangle, CheckCircle, TrendingUp, FileText, Clock, Users, X, Eye, EyeOff, Sparkles, Upload, Image } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Tables } from "@/integrations/supabase/types";
@@ -53,6 +54,7 @@ export const ChannelOptimization = () => {
   const [uploadingTranscript, setUploadingTranscript] = useState<string | null>(null);
   const [contextDialog, setContextDialog] = useState<{episodeId: string, type: 'title' | 'description' | 'hook'} | null>(null);
   const [additionalContext, setAdditionalContext] = useState("");
+  const [savedSuggestions, setSavedSuggestions] = useState<Map<string, number[]>>(new Map());
   const { toast } = useToast();
 
   useEffect(() => {
@@ -64,8 +66,34 @@ export const ChannelOptimization = () => {
   useEffect(() => {
     if (episodes.length > 0) {
       analyzeEpisodes();
+      // Load all existing saved suggestions for episodes
+      loadAllSavedSuggestions();
     }
   }, [episodes, showExcluded]);
+
+  const loadAllSavedSuggestions = async () => {
+    try {
+      const { data: currentUser, error: authError } = await supabase.auth.getUser();
+      if (authError || !currentUser.user) return;
+
+      const { data, error } = await supabase
+        .from('episode_suggestions')
+        .select('episode_id, suggestion_type, saved_suggestions')
+        .eq('user_id', currentUser.user.id);
+
+      if (error) throw error;
+
+      const savedMap = new Map<string, number[]>();
+      data?.forEach(record => {
+        const key = `${record.episode_id}-${record.suggestion_type}`;
+        savedMap.set(key, record.saved_suggestions || []);
+      });
+      
+      setSavedSuggestions(savedMap);
+    } catch (error) {
+      console.error('Error loading saved suggestions:', error);
+    }
+  };
 
   const fetchChannelAndEpisodes = async () => {
     try {
@@ -211,6 +239,9 @@ export const ChannelOptimization = () => {
         loading: false
       })));
 
+      // Load existing saved suggestions for this episode-type combination
+      await loadSavedSuggestions(episode.id, suggestionType);
+
       toast({
         title: "Suggestions Generated",
         description: `Generated ${data.suggestions?.length || 0} alternative ${suggestionType} suggestions`,
@@ -238,6 +269,75 @@ export const ChannelOptimization = () => {
       toast({
         title: "Error generating suggestions",
         description: errorMessage,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const loadSavedSuggestions = async (episodeId: string, suggestionType: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('episode_suggestions')
+        .select('saved_suggestions')
+        .eq('episode_id', episodeId)
+        .eq('suggestion_type', suggestionType)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      const suggestionKey = `${episodeId}-${suggestionType}`;
+      setSavedSuggestions(prev => new Map(prev.set(suggestionKey, data?.saved_suggestions || [])));
+    } catch (error) {
+      console.error('Error loading saved suggestions:', error);
+    }
+  };
+
+  const toggleSaveSuggestion = async (episodeId: string, suggestionType: string, suggestionIndex: number) => {
+    const suggestionKey = `${episodeId}-${suggestionType}`;
+    const currentSaved = savedSuggestions.get(suggestionKey) || [];
+    const isCurrentlySaved = currentSaved.includes(suggestionIndex);
+    
+    let newSavedList: number[];
+    if (isCurrentlySaved) {
+      newSavedList = currentSaved.filter(idx => idx !== suggestionIndex);
+    } else {
+      newSavedList = [...currentSaved, suggestionIndex];
+    }
+
+    // Update local state immediately
+    setSavedSuggestions(prev => new Map(prev.set(suggestionKey, newSavedList)));
+
+    try {
+      // Get current user
+      const { data: currentUser, error: authError } = await supabase.auth.getUser();
+      if (authError || !currentUser.user) throw authError;
+
+      // Try to update existing record first
+      const { error: updateError } = await supabase
+        .from('episode_suggestions')
+        .update({ saved_suggestions: newSavedList })
+        .eq('episode_id', episodeId)
+        .eq('suggestion_type', suggestionType)
+        .eq('user_id', currentUser.user.id);
+
+      if (updateError) {
+        // If no existing record found, we might need to check if there's an episode_suggestions record
+        // For now, just update the saved_suggestions field separately
+        console.log('Update error:', updateError);
+        throw updateError;
+      }
+
+      toast({
+        title: isCurrentlySaved ? "Suggestion unsaved" : "Suggestion saved",
+        description: isCurrentlySaved ? "Removed from saved suggestions" : "Added to saved suggestions",
+      });
+    } catch (error) {
+      console.error('Error saving suggestion:', error);
+      // Revert local state on error
+      setSavedSuggestions(prev => new Map(prev.set(suggestionKey, currentSaved)));
+      toast({
+        title: "Error",
+        description: "Failed to save suggestion. Please try again.",
         variant: "destructive",
       });
     }
@@ -1030,21 +1130,50 @@ export const ChannelOptimization = () => {
                         </div>
                       ) : (
                         <div className="space-y-2">
-                          {suggestion.suggestions.map((suggestionText, idx) => (
-                            <div 
-                              key={idx} 
-                              className="p-2 bg-white dark:bg-gray-800 rounded border border-border/50 text-sm cursor-pointer hover:bg-muted/50 transition-colors"
-                              onClick={() => {
-                                navigator.clipboard.writeText(suggestionText);
-                                toast({ title: "Copied to clipboard!", description: "Suggestion copied successfully" });
-                              }}
-                            >
-                              <span className="text-xs text-muted-foreground mr-2">#{idx + 1}</span>
-                              {suggestionText}
-                            </div>
-                          ))}
+                          {suggestion.suggestions.map((suggestionText, idx) => {
+                            const suggestionKey = `${episodeScore.episode.id}-${suggestion.type}`;
+                            const isSaved = savedSuggestions.get(suggestionKey)?.includes(idx) || false;
+                            
+                            return (
+                              <div 
+                                key={idx} 
+                                className={`p-3 bg-white dark:bg-gray-800 rounded border transition-all ${
+                                  isSaved 
+                                    ? 'border-green-300 bg-green-50 dark:bg-green-900/20 dark:border-green-700' 
+                                    : 'border-border/50 hover:bg-muted/50'
+                                }`}
+                              >
+                                <div className="flex items-start gap-3">
+                                  <Checkbox
+                                    checked={isSaved}
+                                    onCheckedChange={() => toggleSaveSuggestion(episodeScore.episode.id, suggestion.type, idx)}
+                                    className="mt-0.5"
+                                  />
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <span className="text-xs text-muted-foreground">#{idx + 1}</span>
+                                      {isSaved && (
+                                        <Badge variant="secondary" className="text-xs bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300">
+                                          Saved
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    <p 
+                                      className="text-sm cursor-pointer hover:text-primary transition-colors"
+                                      onClick={() => {
+                                        navigator.clipboard.writeText(suggestionText);
+                                        toast({ title: "Copied to clipboard!", description: "Suggestion copied successfully" });
+                                      }}
+                                    >
+                                      {suggestionText}
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
                           <p className="text-xs text-muted-foreground mt-2">
-                            💡 Click any suggestion to copy it to your clipboard
+                            💡 Click any suggestion to copy it • Check the box to save favorites
                           </p>
                         </div>
                       )}
