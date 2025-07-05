@@ -240,6 +240,8 @@ export const Episodes = () => {
     const file = event.target.files?.[0];
     if (!file || !episodeId) return;
 
+    console.log('Starting file upload for episode:', episodeId, 'File:', file.name);
+
     const allowedTypes = ['text/plain', 'application/x-subrip', '.srt', '.vtt'];
     const fileExtension = file.name.toLowerCase().split('.').pop();
     
@@ -256,15 +258,20 @@ export const Episodes = () => {
 
     try {
       const content = await file.text();
+      console.log('File content read, length:', content.length);
       let transcript = content;
 
       // Parse different formats
       if (fileExtension === 'srt') {
         transcript = parseSRT(content);
+        console.log('Parsed SRT, new length:', transcript.length);
       } else if (fileExtension === 'vtt') {
         transcript = parseVTT(content);
+        console.log('Parsed VTT, new length:', transcript.length);
       }
 
+      console.log('About to update episode in database...');
+      
       // Update episode with transcript
       const { error } = await supabase
         .from('episodes')
@@ -272,8 +279,11 @@ export const Episodes = () => {
         .eq('id', episodeId);
 
       if (error) {
+        console.error('Database update error:', error);
         throw error;
       }
+
+      console.log('Database updated successfully');
 
       // Update local state
       setEpisodes(prevEpisodes => prevEpisodes.map(episode => 
@@ -281,6 +291,8 @@ export const Episodes = () => {
           ? { ...episode, transcript }
           : episode
       ));
+
+      console.log('Local state updated');
 
       setTranscriptDialog(null);
       
@@ -293,7 +305,7 @@ export const Episodes = () => {
       console.error("Error uploading transcript:", error);
       toast({
         title: "Error Importing Transcript",
-        description: "Please try again.",
+        description: `Please try again. Error: ${error.message}`,
         variant: "destructive",
       });
     } finally {
