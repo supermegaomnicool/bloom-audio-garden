@@ -32,15 +32,49 @@ function extractTextContent(xml: string, tagName: string): string {
   const patterns = [
     new RegExp(`<${tagName}[^>]*>([^<]*)<\/${tagName}>`, 'i'),
     new RegExp(`<${tagName}[^>]*><\\!\\[CDATA\\[([^\\]]*)\\]\\]><\/${tagName}>`, 'i'),
-    new RegExp(`<${tagName}>([^<]*)<\/${tagName}>`, 'i')
+    new RegExp(`<${tagName}>([^<]*)<\/${tagName}>`, 'i'),
+    // Handle nested HTML content
+    new RegExp(`<${tagName}[^>]*>([\\s\\S]*?)<\/${tagName}>`, 'i')
   ];
   
   for (const pattern of patterns) {
     const match = xml.match(pattern);
     if (match && match[1]) {
-      return match[1].trim();
+      let content = match[1].trim();
+      // Strip HTML tags if present
+      content = content.replace(/<[^>]*>/g, '');
+      // Decode HTML entities
+      content = content.replace(/&lt;/g, '<')
+                      .replace(/&gt;/g, '>')
+                      .replace(/&amp;/g, '&')
+                      .replace(/&quot;/g, '"')
+                      .replace(/&#39;/g, "'");
+      return content;
     }
   }
+  return '';
+}
+
+// Enhanced description extraction for episodes
+function extractEpisodeDescription(xml: string): string {
+  // Try multiple description tags in order of preference
+  const descriptionTags = [
+    'itunes:summary',
+    'description', 
+    'content:encoded',
+    'itunes:subtitle',
+    'summary'
+  ];
+  
+  for (const tag of descriptionTags) {
+    const description = extractTextContent(xml, tag);
+    if (description && description.length > 0) {
+      console.log(`Found description using tag: ${tag}`);
+      return description;
+    }
+  }
+  
+  console.log('No description found for episode');
   return '';
 }
 
@@ -160,7 +194,7 @@ serve(async (req) => {
 
         const episode: Episode = {
           title: title,
-          description: extractTextContent(itemXml, 'description') || '',
+          description: extractEpisodeDescription(itemXml),
           published_at: extractTextContent(itemXml, 'pubDate') ? new Date(extractTextContent(itemXml, 'pubDate')).toISOString() : new Date().toISOString(),
           duration: extractTextContent(itemXml, 'itunes:duration') || '',
           audio_url: extractAttribute(itemXml, 'enclosure', 'url') || '',
@@ -185,6 +219,7 @@ serve(async (req) => {
       episodes.slice(0, 2).forEach((ep, i) => {
         console.log(`Episode ${i + 1}:`, {
           title: ep.title,
+          description: ep.description?.substring(0, 100) + '...',
           external_id: ep.external_id,
           audio_url: ep.audio_url,
           duration: ep.duration
