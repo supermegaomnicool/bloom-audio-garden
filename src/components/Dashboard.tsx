@@ -3,7 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Youtube, Video, AudioWaveform, Users, TrendingUp, Calendar } from "lucide-react";
+import { Plus, Youtube, Video, AudioWaveform, Users, TrendingUp, Calendar, LogOut, User } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
 import heroImage from "@/assets/hero-fantasy-forest.jpg";
 import { ChannelList } from "./ChannelList";
 import { AddChannelDialog } from "./AddChannelDialog";
@@ -11,9 +14,54 @@ import { AddChannelDialog } from "./AddChannelDialog";
 export const Dashboard = () => {
   const navigate = useNavigate();
   const [showAddChannel, setShowAddChannel] = useState(false);
+  const { user, signOut } = useAuth();
+  const { toast } = useToast();
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      toast({
+        title: "Signed out",
+        description: "You have been successfully signed out.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to sign out. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Navigation Bar */}
+      <div className="border-b border-border/50 bg-background/80 backdrop-blur-sm">
+        <div className="container mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            <h1 className="text-xl font-bold text-foreground">Podcast Alchemy Project</h1>
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-muted-foreground">
+                {user?.email}
+              </span>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                    <User className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={handleSignOut}>
+                    <LogOut className="h-4 w-4 mr-2" />
+                    Sign Out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Hero Section */}
       <div 
         className="relative h-64 bg-cover bg-center flex items-center justify-center"
@@ -21,9 +69,9 @@ export const Dashboard = () => {
       >
         <div className="absolute inset-0 bg-gradient-to-r from-background/80 to-background/60" />
         <div className="relative text-center max-w-4xl mx-auto px-6">
-          <h1 className="text-4xl md:text-6xl font-bold mb-4 text-foreground">
-            Podcast Alchemy Project
-          </h1>
+          <h2 className="text-4xl md:text-6xl font-bold mb-4 text-foreground">
+            Transform Your Podcasts
+          </h2>
           <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto">
             Transform your podcasts with magical AI-powered insights. Transmute ordinary content into extraordinary experiences.
           </p>
