@@ -479,6 +479,23 @@ export const Episodes = () => {
                         </div>
                       )}
 
+                      {/* Audio Player */}
+                      {episode.audio_url && (
+                        <div>
+                          <h4 className="text-sm font-medium text-foreground mb-2">Audio Player</h4>
+                          <audio 
+                            controls 
+                            className="w-full"
+                            preload="metadata"
+                          >
+                            <source src={episode.audio_url} type="audio/mpeg" />
+                            <source src={episode.audio_url} type="audio/mp3" />
+                            <source src={episode.audio_url} type="audio/wav" />
+                            Your browser does not support the audio element.
+                          </audio>
+                        </div>
+                      )}
+
                       {/* Technical Details */}
                       <div>
                         <h4 className="text-sm font-medium text-foreground mb-2">Technical Details</h4>
