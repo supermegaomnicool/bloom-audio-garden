@@ -23,6 +23,7 @@ export const Episodes = () => {
   const [expandedEpisode, setExpandedEpisode] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [transcriptDialog, setTranscriptDialog] = useState<string | null>(null);
+  const [confirmGenerateDialog, setConfirmGenerateDialog] = useState<string | null>(null);
   const [generatingTranscript, setGeneratingTranscript] = useState<Set<string>>(new Set());
   const [uploadingTranscript, setUploadingTranscript] = useState<string | null>(null);
   const { toast } = useToast();
@@ -103,6 +104,51 @@ export const Episodes = () => {
     
     return searchableText.includes(query);
   });
+
+  // Estimate transcript generation cost
+  const estimateTranscriptCost = (episode: Episode) => {
+    // OpenAI Whisper costs $0.006 per minute
+    const costPerMinute = 0.006;
+    
+    if (episode.duration) {
+      // Parse duration format (e.g., "01:23:45" or "23:45")
+      const parts = episode.duration.split(':').map(Number);
+      let totalMinutes = 0;
+      
+      if (parts.length === 3) {
+        // HH:MM:SS format
+        totalMinutes = parts[0] * 60 + parts[1] + parts[2] / 60;
+      } else if (parts.length === 2) {
+        // MM:SS format
+        totalMinutes = parts[0] + parts[1] / 60;
+      }
+      
+      const estimatedCost = totalMinutes * costPerMinute;
+      return {
+        minutes: Math.ceil(totalMinutes),
+        cost: estimatedCost,
+        costFormatted: `$${estimatedCost.toFixed(3)}`
+      };
+    }
+    
+    // Fallback: estimate based on file size (rough estimate: 1MB ≈ 1 minute for typical podcast audio)
+    if (episode.file_size) {
+      const estimatedMinutes = Math.ceil(episode.file_size / (1024 * 1024));
+      const estimatedCost = estimatedMinutes * costPerMinute;
+      return {
+        minutes: estimatedMinutes,
+        cost: estimatedCost,
+        costFormatted: `$${estimatedCost.toFixed(3)} (estimated)`
+      };
+    }
+    
+    // Default estimate for unknown duration
+    return {
+      minutes: 30,
+      cost: 30 * costPerMinute,
+      costFormatted: '$0.180 (estimated)'
+    };
+  };
 
   const handleGenerateTranscript = async (episodeId: string, episodeTitle: string) => {
     setGeneratingTranscript(prev => new Set([...prev, episodeId]));
@@ -616,25 +662,67 @@ export const Episodes = () => {
                     
                     {/* Transcript Actions */}
                     {episode.audio_url && !episode.transcript && (
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => handleGenerateTranscript(episode.id, episode.title)}
-                        disabled={generatingTranscript.has(episode.id)}
-                        className="min-w-[140px]"
-                      >
-                        {generatingTranscript.has(episode.id) ? (
-                          <>
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            Generating...
-                          </>
-                        ) : (
-                          <>
-                            <FileText className="h-4 w-4 mr-2" />
-                            Generate Transcript
-                          </>
-                        )}
-                      </Button>
+                      <>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => setConfirmGenerateDialog(episode.id)}
+                          disabled={generatingTranscript.has(episode.id)}
+                          className="min-w-[140px]"
+                        >
+                          {generatingTranscript.has(episode.id) ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              Generating...
+                            </>
+                          ) : (
+                            <>
+                              <FileText className="h-4 w-4 mr-2" />
+                              Generate Transcript
+                            </>
+                          )}
+                        </Button>
+                        
+                        {/* Confirmation Dialog for Generate Transcript */}
+                        <Dialog open={confirmGenerateDialog === episode.id} onOpenChange={(open) => setConfirmGenerateDialog(open ? episode.id : null)}>
+                          <DialogContent>
+                            <DialogHeader>
+                              <DialogTitle>Generate Transcript</DialogTitle>
+                              <DialogDescription>
+                                Are you sure you want to generate a transcript for "{episode.title}"?
+                              </DialogDescription>
+                            </DialogHeader>
+                            <div className="space-y-3">
+                              <div className="bg-muted/30 p-3 rounded">
+                                <h4 className="text-sm font-medium mb-2">Cost Estimate</h4>
+                                <div className="text-sm space-y-1">
+                                  <div>Duration: ~{estimateTranscriptCost(episode).minutes} minutes</div>
+                                  <div>Estimated cost: {estimateTranscriptCost(episode).costFormatted}</div>
+                                  <div className="text-xs text-muted-foreground mt-2">
+                                    * Based on OpenAI Whisper pricing ($0.006/minute)
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                            <DialogFooter>
+                              <Button 
+                                variant="outline" 
+                                onClick={() => setConfirmGenerateDialog(null)}
+                              >
+                                Cancel
+                              </Button>
+                              <Button 
+                                onClick={() => {
+                                  setConfirmGenerateDialog(null);
+                                  handleGenerateTranscript(episode.id, episode.title);
+                                }}
+                              >
+                                Generate Transcript
+                              </Button>
+                            </DialogFooter>
+                          </DialogContent>
+                        </Dialog>
+                      </>
                     )}
                     
                     <Dialog open={transcriptDialog === episode.id} onOpenChange={(open) => setTranscriptDialog(open ? episode.id : null)}>
