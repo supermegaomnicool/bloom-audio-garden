@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,7 @@ import { Tables } from "@/integrations/supabase/types";
 type Channel = Tables<"channels">;
 
 export const ChannelList = () => {
+  const navigate = useNavigate();
   const [channels, setChannels] = useState<Channel[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncingChannels, setSyncingChannels] = useState<Set<string>>(new Set());
@@ -229,7 +231,7 @@ export const ChannelList = () => {
                 )}
                 <div>
                   <CardTitle className="text-lg">{channel.name}</CardTitle>
-                  <CardDescription className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 mt-1">
                     <Badge variant="secondary" className="text-xs">
                       {channel.type.toUpperCase()}
                     </Badge>
@@ -238,7 +240,7 @@ export const ChannelList = () => {
                         {channel.subscriber_count.toLocaleString()} subscribers
                       </span>
                     )}
-                  </CardDescription>
+                  </div>
                 </div>
               </div>
               <Button variant="ghost" size="icon" asChild>
@@ -342,8 +344,12 @@ export const ChannelList = () => {
               </div>
 
               <div className="flex items-center gap-2 pt-2">
-                <Button variant="outline" size="sm" asChild>
-                  <a href={`/episodes/${channel.id}`}>View Episodes</a>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => navigate(`/episodes/${channel.id}`)}
+                >
+                  View Episodes
                 </Button>
                 <Button 
                   variant="outline" 
@@ -356,7 +362,11 @@ export const ChannelList = () => {
                   {syncingChannels.has(channel.id) ? 'Syncing...' : 'Sync Now'}
                 </Button>
 
-                <Button variant="bloom" size="sm">
+                <Button 
+                  variant="bloom" 
+                  size="sm"
+                  onClick={() => navigate(`/optimize/${channel.id}`)}
+                >
                   Optimize
                 </Button>
               </div>
