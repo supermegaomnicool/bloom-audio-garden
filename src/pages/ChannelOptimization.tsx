@@ -4,7 +4,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { ArrowLeft, Star, AlertTriangle, CheckCircle, TrendingUp, FileText, Clock, Users } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { ArrowLeft, Star, AlertTriangle, CheckCircle, TrendingUp, FileText, Clock, Users, X, Eye, EyeOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Tables } from "@/integrations/supabase/types";
@@ -33,6 +36,9 @@ export const ChannelOptimization = () => {
   const [channel, setChannel] = useState<Channel | null>(null);
   const [loading, setLoading] = useState(true);
   const [episodeScores, setEpisodeScores] = useState<EpisodeScore[]>([]);
+  const [excludeDialog, setExcludeDialog] = useState<string | null>(null);
+  const [exclusionNotes, setExclusionNotes] = useState("");
+  const [showExcluded, setShowExcluded] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -45,7 +51,7 @@ export const ChannelOptimization = () => {
     if (episodes.length > 0) {
       analyzeEpisodes();
     }
-  }, [episodes]);
+  }, [episodes, showExcluded]);
 
   const fetchChannelAndEpisodes = async () => {
     try {
@@ -80,8 +86,49 @@ export const ChannelOptimization = () => {
     }
   };
 
+  const handleExcludeEpisode = async (episodeId: string, exclude: boolean, notes: string = "") => {
+    try {
+      const { error } = await supabase
+        .from('episodes')
+        .update({ 
+          excluded: exclude,
+          exclusion_notes: exclude ? notes : null
+        })
+        .eq('id', episodeId);
+
+      if (error) throw error;
+
+      // Update local state
+      setEpisodes(prevEpisodes => prevEpisodes.map(episode => 
+        episode.id === episodeId 
+          ? { ...episode, excluded: exclude, exclusion_notes: exclude ? notes : null }
+          : episode
+      ));
+
+      toast({
+        title: exclude ? "Episode Excluded" : "Episode Restored",
+        description: exclude 
+          ? "Episode has been excluded from optimization" 
+          : "Episode has been restored to optimization list",
+      });
+
+      setExcludeDialog(null);
+      setExclusionNotes("");
+    } catch (error) {
+      console.error("Error updating episode:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update episode status",
+        variant: "destructive",
+      });
+    }
+  };
+
   const analyzeEpisodes = () => {
-    const scores: EpisodeScore[] = episodes.map(episode => {
+    // Filter episodes based on exclusion status
+    const episodesToAnalyze = showExcluded ? episodes : episodes.filter(ep => !ep.excluded);
+    
+    const scores: EpisodeScore[] = episodesToAnalyze.map(episode => {
       const issues: OptimizationIssue[] = [];
       let score = 100;
 
@@ -309,6 +356,16 @@ export const ChannelOptimization = () => {
           </h1>
           <p className="text-muted-foreground">{channel.name}</p>
         </div>
+        
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setShowExcluded(!showExcluded)}
+          className="flex items-center gap-2"
+        >
+          {showExcluded ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          {showExcluded ? 'Hide' : 'Show'} Excluded ({episodes.filter(e => e.excluded).length})
+        </Button>
       </div>
 
       {/* Overview Stats */}
@@ -357,7 +414,7 @@ export const ChannelOptimization = () => {
       {/* Episodes List */}
       <div className="space-y-4">
         {episodeScores.map((episodeScore, index) => (
-          <Card key={episodeScore.episode.id} className="shadow-soft border-border/50">
+          <Card key={episodeScore.episode.id} className={`shadow-soft border-border/50 ${episodeScore.episode.excluded ? 'opacity-60 border-muted' : ''}`}>
             <CardHeader>
               <div className="flex items-start justify-between">
                 <div className="flex-1">
@@ -374,6 +431,11 @@ export const ChannelOptimization = () => {
                       ))}
                     </div>
                     <span className="text-sm font-medium">{episodeScore.score}%</span>
+                    {episodeScore.episode.excluded && (
+                      <Badge variant="secondary" className="text-xs bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400">
+                        Excluded
+                      </Badge>
+                    )}
                   </div>
                   <CardTitle className="text-lg line-clamp-2">
                     {episodeScore.episode.episode_number && `#${episodeScore.episode.episode_number} - `}
@@ -393,6 +455,36 @@ export const ChannelOptimization = () => {
                       </span>
                     )}
                   </CardDescription>
+                  
+                  {episodeScore.episode.exclusion_notes && (
+                    <div className="mt-2 p-2 bg-muted/50 rounded text-sm">
+                      <span className="text-muted-foreground font-medium">Exclusion reason: </span>
+                      {episodeScore.episode.exclusion_notes}
+                    </div>
+                  )}
+                </div>
+                
+                <div className="flex items-center gap-2 ml-4">
+                  {!episodeScore.episode.excluded ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setExcludeDialog(episodeScore.episode.id)}
+                      className="text-red-600 border-red-200 hover:bg-red-50 dark:text-red-400 dark:border-red-800 dark:hover:bg-red-900/20"
+                    >
+                      <X className="h-4 w-4 mr-1" />
+                      Exclude
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleExcludeEpisode(episodeScore.episode.id, false)}
+                      className="text-green-600 border-green-200 hover:bg-green-50 dark:text-green-400 dark:border-green-800 dark:hover:bg-green-900/20"
+                    >
+                      Restore
+                    </Button>
+                  )}
                 </div>
               </div>
             </CardHeader>
@@ -432,6 +524,54 @@ export const ChannelOptimization = () => {
           </Card>
         ))}
       </div>
+
+      {/* Exclude Episode Dialog */}
+      <Dialog open={!!excludeDialog} onOpenChange={(open) => !open && setExcludeDialog(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Exclude Episode</DialogTitle>
+            <DialogDescription>
+              This episode will be excluded from optimization analysis. Please provide a reason.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="exclusion-notes">Reason for exclusion</Label>
+              <Textarea
+                id="exclusion-notes"
+                placeholder="e.g., This is a trailer episode that only conveys basic information..."
+                value={exclusionNotes}
+                onChange={(e) => setExclusionNotes(e.target.value)}
+                className="mt-2"
+                rows={3}
+              />
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setExcludeDialog(null);
+                setExclusionNotes("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (excludeDialog) {
+                  handleExcludeEpisode(excludeDialog, true, exclusionNotes);
+                }
+              }}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              Exclude Episode
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
