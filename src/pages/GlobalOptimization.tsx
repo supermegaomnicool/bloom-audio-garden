@@ -61,6 +61,7 @@ export const GlobalOptimization = () => {
       const { data: episodesData, error: episodesError } = await supabase
         .from("episodes")
         .select("*")
+        .eq("excluded", false)  // Only include non-excluded episodes
         .order("published_at", { ascending: false });
 
       if (episodesError) throw episodesError;

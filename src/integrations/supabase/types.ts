@@ -79,6 +79,8 @@ export type Database = {
           download_count: number | null
           duration: string | null
           episode_number: number | null
+          excluded: boolean | null
+          exclusion_notes: string | null
           external_id: string | null
           file_size: number | null
           has_custom_artwork: boolean | null
@@ -105,6 +107,8 @@ export type Database = {
           download_count?: number | null
           duration?: string | null
           episode_number?: number | null
+          excluded?: boolean | null
+          exclusion_notes?: string | null
           external_id?: string | null
           file_size?: number | null
           has_custom_artwork?: boolean | null
@@ -131,6 +135,8 @@ export type Database = {
           download_count?: number | null
           duration?: string | null
           episode_number?: number | null
+          excluded?: boolean | null
+          exclusion_notes?: string | null
           external_id?: string | null
           file_size?: number | null
           has_custom_artwork?: boolean | null

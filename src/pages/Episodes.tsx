@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Calendar, Clock, ExternalLink, Play, Search, FileText, Upload, Loader2 } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { ArrowLeft, Calendar, Clock, ExternalLink, Play, Search, FileText, Upload, Loader2, X, Eye, EyeOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Tables } from "@/integrations/supabase/types";
@@ -26,6 +27,9 @@ export const Episodes = () => {
   const [confirmGenerateDialog, setConfirmGenerateDialog] = useState<string | null>(null);
   const [generatingTranscript, setGeneratingTranscript] = useState<Set<string>>(new Set());
   const [uploadingTranscript, setUploadingTranscript] = useState<string | null>(null);
+  const [excludeDialog, setExcludeDialog] = useState<string | null>(null);
+  const [exclusionNotes, setExclusionNotes] = useState("");
+  const [showExcluded, setShowExcluded] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -85,8 +89,11 @@ export const Episodes = () => {
     return `${mb.toFixed(1)} MB`;
   };
 
-  // Filter episodes based on search query
+  // Filter episodes based on search query and exclusion status
   const filteredEpisodes = episodes.filter((episode) => {
+    // Filter by exclusion status
+    if (!showExcluded && episode.excluded) return false;
+    
     if (!searchQuery.trim()) return true;
     
     const query = searchQuery.toLowerCase();
@@ -100,6 +107,7 @@ export const Episodes = () => {
       episode.issues?.join(' '),
       episode.episode_number?.toString(),
       episode.season_number?.toString(),
+      episode.exclusion_notes,
     ].filter(Boolean).join(' ').toLowerCase();
     
     return searchableText.includes(query);
@@ -370,6 +378,44 @@ export const Episodes = () => {
     }
   };
 
+  const handleExcludeEpisode = async (episodeId: string, exclude: boolean, notes: string = "") => {
+    try {
+      const { error } = await supabase
+        .from('episodes')
+        .update({ 
+          excluded: exclude,
+          exclusion_notes: exclude ? notes : null
+        })
+        .eq('id', episodeId);
+
+      if (error) throw error;
+
+      // Update local state
+      setEpisodes(prevEpisodes => prevEpisodes.map(episode => 
+        episode.id === episodeId 
+          ? { ...episode, excluded: exclude, exclusion_notes: exclude ? notes : null }
+          : episode
+      ));
+
+      toast({
+        title: exclude ? "Episode Excluded" : "Episode Restored",
+        description: exclude 
+          ? "Episode has been excluded from optimization" 
+          : "Episode has been restored to optimization list",
+      });
+
+      setExcludeDialog(null);
+      setExclusionNotes("");
+    } catch (error) {
+      console.error("Error updating episode:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update episode status",
+        variant: "destructive",
+      });
+    }
+  };
+
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -421,15 +467,28 @@ export const Episodes = () => {
           </p>
         </div>
         
-        {/* Search Input */}
-        <div className="relative max-w-sm">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search episodes..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
-          />
+        {/* Controls */}
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowExcluded(!showExcluded)}
+            className="flex items-center gap-2"
+          >
+            {showExcluded ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            {showExcluded ? 'Hide' : 'Show'} Excluded ({episodes.filter(e => e.excluded).length})
+          </Button>
+          
+          {/* Search Input */}
+          <div className="relative max-w-sm">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search episodes..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10"
+            />
+          </div>
         </div>
       </div>
 
@@ -472,13 +531,20 @@ export const Episodes = () => {
       ) : (
         <div className="space-y-4">
           {filteredEpisodes.map((episode) => (
-            <Card key={episode.id} className="shadow-soft border-border/50 hover:shadow-natural transition-shadow">
+            <Card key={episode.id} className={`shadow-soft border-border/50 hover:shadow-natural transition-shadow ${episode.excluded ? 'opacity-60 border-muted' : ''}`}>
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <CardTitle className="text-lg line-clamp-2">
-                      {episode.episode_number && `#${episode.episode_number} - `}{episode.title}
-                    </CardTitle>
+                    <div className="flex items-center gap-2 mb-2">
+                      <CardTitle className="text-lg line-clamp-2">
+                        {episode.episode_number && `#${episode.episode_number} - `}{episode.title}
+                      </CardTitle>
+                      {episode.excluded && (
+                        <Badge variant="secondary" className="text-xs bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400">
+                          Excluded
+                        </Badge>
+                      )}
+                    </div>
                     <CardDescription className="flex items-center gap-2 mt-2">
                       {episode.published_at && (
                         <span className="flex items-center gap-1 text-xs">
@@ -497,15 +563,59 @@ export const Episodes = () => {
                           Score: {episode.optimization_score}%
                         </Badge>
                       )}
-                    </CardDescription>
+                     </CardDescription>
+                     
+                     {episode.exclusion_notes && (
+                       <div className="mt-2 p-2 bg-muted/50 rounded text-sm">
+                         <span className="text-muted-foreground font-medium">Exclusion reason: </span>
+                         {episode.exclusion_notes}
+                       </div>
+                     )}
                   </div>
-                  {episode.audio_url && (
-                    <Button variant="ghost" size="icon" asChild>
-                      <a href={episode.audio_url} target="_blank" rel="noopener noreferrer">
-                        <ExternalLink className="h-4 w-4" />
-                      </a>
-                    </Button>
-                  )}
+                  
+                  <div className="flex items-center gap-2 ml-4">
+                    {!episode.excluded ? (
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            console.log("Optimize button clicked, channelId:", channelId);
+                            navigate(`/optimize/${channelId}`);
+                          }}
+                        >
+                          Optimize
+                        </Button>
+                        
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setExcludeDialog(episode.id)}
+                          className="text-red-600 border-red-200 hover:bg-red-50 dark:text-red-400 dark:border-red-800 dark:hover:bg-red-900/20"
+                        >
+                          <X className="h-4 w-4 mr-1" />
+                          Exclude
+                        </Button>
+                      </>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleExcludeEpisode(episode.id, false)}
+                        className="text-green-600 border-green-200 hover:bg-green-50 dark:text-green-400 dark:border-green-800 dark:hover:bg-green-900/20"
+                      >
+                        Restore
+                      </Button>
+                    )}
+                    
+                    {episode.audio_url && (
+                      <Button variant="ghost" size="icon" asChild>
+                        <a href={episode.audio_url} target="_blank" rel="noopener noreferrer">
+                          <ExternalLink className="h-4 w-4" />
+                        </a>
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>
@@ -797,6 +907,54 @@ export const Episodes = () => {
           ))}
         </div>
       )}
+
+      {/* Exclude Episode Dialog */}
+      <Dialog open={!!excludeDialog} onOpenChange={(open) => !open && setExcludeDialog(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Exclude Episode</DialogTitle>
+            <DialogDescription>
+              This episode will be excluded from optimization analysis. Please provide a reason.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="exclusion-notes">Reason for exclusion</Label>
+              <Textarea
+                id="exclusion-notes"
+                placeholder="e.g., This is a trailer episode that only conveys basic information..."
+                value={exclusionNotes}
+                onChange={(e) => setExclusionNotes(e.target.value)}
+                className="mt-2"
+                rows={3}
+              />
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setExcludeDialog(null);
+                setExclusionNotes("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (excludeDialog) {
+                  handleExcludeEpisode(excludeDialog, true, exclusionNotes);
+                }
+              }}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              Exclude Episode
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
