@@ -14,9 +14,9 @@ serve(async (req) => {
   }
 
   try {
-    const { episodeId, suggestionType, originalContent, episodeTitle, channelName } = await req.json();
+    const { episodeId, suggestionType, originalContent, episodeTitle, channelName, transcript, episodeDescription } = await req.json();
 
-    if (!episodeId || !suggestionType || !originalContent) {
+    if (!episodeId || !suggestionType) {
       throw new Error('Missing required parameters');
     }
 
@@ -36,9 +36,26 @@ serve(async (req) => {
     switch (suggestionType) {
       case 'title':
         systemPrompt = 'You are an expert podcast title writer. Create compelling, SEO-optimized titles that drive clicks and accurately represent the content.';
-        prompt = `Generate 5 alternative titles for this podcast episode from "${channelName}":
+        if (transcript) {
+          prompt = `Generate 5 alternative titles for this podcast episode from "${channelName}":
 
-Original title: "${originalContent}"
+Original title: "${originalContent || episodeTitle}"
+Episode content summary (from transcript): "${transcript.substring(0, 1500)}..."
+
+Requirements:
+- 30-80 characters optimal length
+- Include compelling hooks, specific topics, or numbers when relevant
+- Avoid generic words like "episode", "podcast", "show"
+- Use specific topics/themes from the actual content
+- Make them clickable and curiosity-driving
+- Reference key insights, guests, or topics mentioned in the episode
+
+Return only a JSON array of 5 title strings, no other text.`;
+        } else {
+          prompt = `Generate 5 alternative titles for this podcast episode from "${channelName}":
+
+Original title: "${originalContent || episodeTitle}"
+${episodeDescription ? `Episode description: "${episodeDescription.substring(0, 800)}..."` : ''}
 
 Requirements:
 - 30-80 characters optimal length
@@ -48,14 +65,32 @@ Requirements:
 - Maintain the core topic but make it more engaging
 
 Return only a JSON array of 5 title strings, no other text.`;
+        }
         break;
 
       case 'description':
         systemPrompt = 'You are an expert podcast description writer. Create detailed, SEO-rich descriptions that hook readers and provide value.';
-        prompt = `Generate 5 alternative opening paragraphs for this podcast episode description:
+        if (transcript) {
+          prompt = `Generate 5 alternative opening paragraphs for this podcast episode description:
 
 Episode: "${episodeTitle}" from "${channelName}"
-Current description start: "${originalContent.substring(0, 500)}..."
+Current description start: "${(originalContent || episodeDescription || '').substring(0, 500)}..."
+Episode content (from transcript): "${transcript.substring(0, 2000)}..."
+
+Requirements:
+- Create compelling opening hooks using specific details from the episode content
+- Avoid generic openings like "In this episode" or "Today we discuss"
+- Start with intrigue, bold statements, specific insights, or immediate value
+- Each should be 2-3 sentences that reference actual content discussed
+- Use specific quotes, topics, or revelations from the transcript
+- Make them irresistible to click and listen
+
+Return only a JSON array of 5 opening paragraph strings, no other text.`;
+        } else {
+          prompt = `Generate 5 alternative opening paragraphs for this podcast episode description:
+
+Episode: "${episodeTitle}" from "${channelName}"
+Current description start: "${(originalContent || episodeDescription || '').substring(0, 500)}..."
 
 Requirements:
 - Create compelling opening hooks that grab attention immediately
@@ -65,14 +100,33 @@ Requirements:
 - Make them specific to the content, not generic
 
 Return only a JSON array of 5 opening paragraph strings, no other text.`;
+        }
         break;
 
       case 'hook':
         systemPrompt = 'You are an expert copywriter specializing in compelling opening hooks for podcast descriptions.';
-        prompt = `Generate 5 alternative opening sentences for this podcast description:
+        if (transcript) {
+          prompt = `Generate 5 alternative opening sentences for this podcast description:
 
 Episode: "${episodeTitle}" from "${channelName}"
 Current opening: "${originalContent}"
+Episode content (from transcript): "${transcript.substring(0, 1500)}..."
+
+Requirements:
+- Start with immediate intrigue using specific details from the episode
+- Reference actual insights, quotes, or surprising moments from the content
+- Avoid filler words and generic podcast language
+- Make each opening grab attention in the first 10 words
+- Use specific, concrete details from the transcript
+- Create curiosity about what's revealed in the episode
+
+Return only a JSON array of 5 opening sentence strings, no other text.`;
+        } else {
+          prompt = `Generate 5 alternative opening sentences for this podcast description:
+
+Episode: "${episodeTitle}" from "${channelName}"
+Current opening: "${originalContent}"
+${episodeDescription ? `Episode description: "${episodeDescription.substring(0, 500)}..."` : ''}
 
 Requirements:
 - Start with immediate intrigue or value proposition
@@ -82,6 +136,7 @@ Requirements:
 - Create curiosity or promise immediate value
 
 Return only a JSON array of 5 opening sentence strings, no other text.`;
+        }
         break;
 
       default:

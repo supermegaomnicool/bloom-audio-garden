@@ -169,7 +169,9 @@ export const ChannelOptimization = () => {
           suggestionType,
           originalContent,
           episodeTitle: episode.title,
-          channelName: channel?.name || ''
+          channelName: channel?.name || '',
+          transcript: episode.transcript || null,
+          episodeDescription: episode.description || ''
         }
       });
 
@@ -864,8 +866,24 @@ export const ChannelOptimization = () => {
                   </div>
                 )}
 
-                {/* Transcript Status and Upload */}
-                {!episodeScore.episode.transcript && (
+                {/* Transcript Status and Display */}
+                {episodeScore.episode.transcript ? (
+                  <div className="p-4 bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-800 rounded-lg">
+                    <h5 className="text-sm font-medium text-green-800 dark:text-green-200 mb-2 flex items-center gap-2">
+                      <FileText className="h-4 w-4" />
+                      Episode Transcript Available
+                    </h5>
+                    <div className="max-h-32 overflow-y-auto bg-white dark:bg-gray-800 border border-green-200 dark:border-green-700 rounded p-3 text-xs">
+                      <pre className="whitespace-pre-wrap text-gray-700 dark:text-gray-300">
+                        {episodeScore.episode.transcript.substring(0, 1000)}
+                        {episodeScore.episode.transcript.length > 1000 && '...'}
+                      </pre>
+                    </div>
+                    <p className="text-xs text-green-600 dark:text-green-400 mt-2">
+                      ✅ Transcript enables AI-powered optimization suggestions
+                    </p>
+                  </div>
+                ) : (
                   <div className="p-3 bg-orange-50 dark:bg-orange-900/10 border border-orange-200 dark:border-orange-800 rounded-lg">
                     <div className="flex items-start gap-3">
                       <Upload className="h-5 w-5 text-orange-600 flex-shrink-0 mt-0.5" />
@@ -901,70 +919,63 @@ export const ChannelOptimization = () => {
                   </div>
                 )}
 
-                {/* Issues */}
-                {episodeScore.issues.length > 0 && (
-                  <div>
-                    <h4 className="text-sm font-medium text-foreground mb-3">Issues & Suggestions</h4>
-                    <div className="space-y-3">
-                      {episodeScore.issues.map((issue, issueIndex) => (
-                        <div key={issueIndex} className="flex gap-3 p-3 bg-muted/30 rounded-lg">
-                          {getIssueIcon(issue.type)}
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              <Badge variant="outline" className="text-xs">
-                                {issue.category}
-                              </Badge>
-                              <span className="text-sm font-medium">{issue.message}</span>
-                            </div>
-                            <p className="text-xs text-muted-foreground mb-2">{issue.suggestion}</p>
-                            
-                            {/* AI Suggestion Buttons */}
-                            {(issue.category === 'Title' || issue.category === 'Description' || issue.category === 'Opening') && (
-                              <div className="flex gap-2 mt-2">
-                                {issue.category === 'Title' && (
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => generateSuggestions(episodeScore, 'title')}
-                                    disabled={aiSuggestions.get(`${episodeScore.episode.id}-title`)?.loading}
-                                    className="text-xs"
-                                  >
-                                    <Sparkles className="h-3 w-3 mr-1" />
-                                    {aiSuggestions.get(`${episodeScore.episode.id}-title`)?.loading ? 'Generating...' : 'Get Title Ideas'}
-                                  </Button>
-                                )}
-                                {issue.category === 'Description' && (
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => generateSuggestions(episodeScore, 'description')}
-                                    disabled={aiSuggestions.get(`${episodeScore.episode.id}-description`)?.loading}
-                                    className="text-xs"
-                                  >
-                                    <Sparkles className="h-3 w-3 mr-1" />
-                                    {aiSuggestions.get(`${episodeScore.episode.id}-description`)?.loading ? 'Generating...' : 'Get Description Ideas'}
-                                  </Button>
-                                )}
-                                {issue.category === 'Opening' && (
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => generateSuggestions(episodeScore, 'hook')}
-                                    disabled={aiSuggestions.get(`${episodeScore.episode.id}-hook`)?.loading}
-                                    className="text-xs"
-                                  >
-                                    <Sparkles className="h-3 w-3 mr-1" />
-                                    {aiSuggestions.get(`${episodeScore.episode.id}-hook`)?.loading ? 'Generating...' : 'Get Hook Ideas'}
-                                  </Button>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ))}
+                {/* AI Optimization Section */}
+                <div className="space-y-4">
+                  <h4 className="text-sm font-medium text-foreground flex items-center gap-2">
+                    <Sparkles className="h-4 w-4" />
+                    AI-Powered Optimization
+                  </h4>
+                  
+                  {/* Current Content Display */}
+                  <div className="grid gap-3">
+                    <div className="p-3 bg-muted/20 rounded-lg">
+                      <h5 className="text-xs font-medium text-muted-foreground mb-1">Current Title</h5>
+                      <p className="text-sm">{episodeScore.episode.title}</p>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => generateSuggestions(episodeScore, 'title')}
+                        disabled={aiSuggestions.get(`${episodeScore.episode.id}-title`)?.loading}
+                        className="text-xs mt-2"
+                      >
+                        <Sparkles className="h-3 w-3 mr-1" />
+                        {aiSuggestions.get(`${episodeScore.episode.id}-title`)?.loading ? 'Generating...' : 'Get Title Ideas'}
+                      </Button>
+                    </div>
+                    
+                    <div className="p-3 bg-muted/20 rounded-lg">
+                      <h5 className="text-xs font-medium text-muted-foreground mb-1">Current Description</h5>
+                      <p className="text-sm line-clamp-3">{episodeScore.episode.description?.replace(/<[^>]*>/g, '') || 'No description available'}</p>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => generateSuggestions(episodeScore, 'description')}
+                        disabled={aiSuggestions.get(`${episodeScore.episode.id}-description`)?.loading}
+                        className="text-xs mt-2"
+                      >
+                        <Sparkles className="h-3 w-3 mr-1" />
+                        {aiSuggestions.get(`${episodeScore.episode.id}-description`)?.loading ? 'Generating...' : 'Get Description Ideas'}
+                      </Button>
+                    </div>
+                    
+                    <div className="p-3 bg-muted/20 rounded-lg">
+                      <h5 className="text-xs font-medium text-muted-foreground mb-1">Current Opening Hook</h5>
+                      <p className="text-sm line-clamp-2">
+                        {episodeScore.episode.description?.replace(/<[^>]*>/g, '').split('.')[0] || 'No opening hook available'}
+                      </p>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => generateSuggestions(episodeScore, 'hook')}
+                        disabled={aiSuggestions.get(`${episodeScore.episode.id}-hook`)?.loading}
+                        className="text-xs mt-2"
+                      >
+                        <Sparkles className="h-3 w-3 mr-1" />
+                        {aiSuggestions.get(`${episodeScore.episode.id}-hook`)?.loading ? 'Generating...' : 'Get Hook Ideas'}
+                      </Button>
                     </div>
                   </div>
-                )}
+                </div>
 
                 {/* AI Suggestions Display */}
                 {Array.from(aiSuggestions.entries())
