@@ -141,55 +141,99 @@ export const Episodes = () => {
   };
 
   const parseSRT = (content: string): string => {
-    // Parse SRT format and extract text
+    // Parse SRT format and preserve structure with timestamps
     const lines = content.split('\n');
-    const textLines: string[] = [];
-    let isTextLine = false;
-
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (trimmed === '') {
-        isTextLine = false;
-      } else if (/^\d+$/.test(trimmed)) {
-        // Subtitle number
-        isTextLine = false;
-      } else if (/^\d{2}:\d{2}:\d{2},\d{3} --> \d{2}:\d{2}:\d{2},\d{3}$/.test(trimmed)) {
+    const segments: string[] = [];
+    let currentTimestamp = '';
+    let currentText: string[] = [];
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      
+      if (line === '') {
+        // End of segment
+        if (currentTimestamp && currentText.length > 0) {
+          segments.push(`[${currentTimestamp.split(' --> ')[0]}]\n${currentText.join(' ')}\n`);
+        }
+        currentTimestamp = '';
+        currentText = [];
+      } else if (/^\d+$/.test(line)) {
+        // Subtitle number - skip
+        continue;
+      } else if (/^\d{2}:\d{2}:\d{2},\d{3} --> \d{2}:\d{2}:\d{2},\d{3}$/.test(line)) {
         // Timestamp line
-        isTextLine = true;
-      } else if (isTextLine) {
+        currentTimestamp = line.replace(/,/g, '.');
+      } else if (currentTimestamp) {
         // Text content
-        textLines.push(trimmed);
+        currentText.push(line);
       }
     }
+    
+    // Don't forget the last segment
+    if (currentTimestamp && currentText.length > 0) {
+      segments.push(`[${currentTimestamp.split(' --> ')[0]}]\n${currentText.join(' ')}\n`);
+    }
 
-    return textLines.join(' ');
+    return segments.join('\n');
   };
 
   const parseVTT = (content: string): string => {
-    // Parse VTT format and extract text
+    // Parse VTT format and preserve speaker info + timestamps
     const lines = content.split('\n');
-    const textLines: string[] = [];
-    let inContent = false;
-
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (trimmed === 'WEBVTT' || trimmed.startsWith('NOTE')) {
+    const segments: string[] = [];
+    let currentTimestamp = '';
+    let currentSpeaker = '';
+    let currentText: string[] = [];
+    let pastHeader = false;
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      
+      if (line === 'WEBVTT' || line.startsWith('NOTE')) {
+        pastHeader = true;
         continue;
-      } else if (trimmed === '') {
-        inContent = false;
-      } else if (/^\d{2}:\d{2}:\d{2}\.\d{3} --> \d{2}:\d{2}:\d{2}\.\d{3}/.test(trimmed)) {
+      } else if (!pastHeader) {
+        continue;
+      } else if (line === '') {
+        // End of segment
+        if (currentTimestamp && currentText.length > 0) {
+          const speaker = currentSpeaker ? `**${currentSpeaker}**: ` : '';
+          const timestamp = `[${currentTimestamp.split(' --> ')[0]}]`;
+          segments.push(`${timestamp} ${speaker}${currentText.join(' ')}\n`);
+        }
+        currentTimestamp = '';
+        currentSpeaker = '';
+        currentText = [];
+      } else if (/^\d{2}:\d{2}:\d{2}\.\d{3} --> \d{2}:\d{2}:\d{2}\.\d{3}/.test(line)) {
         // Timestamp line
-        inContent = true;
-      } else if (inContent && !trimmed.match(/^<v\s+/)) {
-        // Text content (skip speaker labels like <v Speaker>)
-        const cleanText = trimmed.replace(/<[^>]*>/g, '').trim();
-        if (cleanText) {
-          textLines.push(cleanText);
+        currentTimestamp = line;
+      } else if (currentTimestamp) {
+        // Text content - check for speaker tags
+        const speakerMatch = line.match(/^<v\s+([^>]+)>/);
+        if (speakerMatch) {
+          currentSpeaker = speakerMatch[1];
+          const textWithoutSpeaker = line.replace(/^<v\s+[^>]+>/, '').trim();
+          if (textWithoutSpeaker) {
+            currentText.push(textWithoutSpeaker);
+          }
+        } else {
+          // Regular text or text with other tags
+          const cleanText = line.replace(/<[^>]*>/g, '').trim();
+          if (cleanText) {
+            currentText.push(cleanText);
+          }
         }
       }
     }
+    
+    // Don't forget the last segment
+    if (currentTimestamp && currentText.length > 0) {
+      const speaker = currentSpeaker ? `**${currentSpeaker}**: ` : '';
+      const timestamp = `[${currentTimestamp.split(' --> ')[0]}]`;
+      segments.push(`${timestamp} ${speaker}${currentText.join(' ')}\n`);
+    }
 
-    return textLines.join(' ');
+    return segments.join('\n');
   };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>, episodeId: string) => {
@@ -475,7 +519,9 @@ export const Episodes = () => {
                         <div>
                           <h4 className="text-sm font-medium text-foreground mb-2">Transcript</h4>
                           <div className="max-h-40 overflow-y-auto bg-muted/30 p-3 rounded text-xs">
-                            <p className="whitespace-pre-wrap">{episode.transcript}</p>
+                            <div className="whitespace-pre-wrap font-mono leading-relaxed">
+                              {episode.transcript}
+                            </div>
                           </div>
                         </div>
                       )}
@@ -584,7 +630,8 @@ export const Episodes = () => {
                             disabled={uploadingTranscript === episode.id}
                           />
                           <p className="text-sm text-muted-foreground">
-                            TXT: Plain text • SRT: SubRip subtitles • VTT: WebVTT subtitles
+                            **Recommended:** VTT files preserve speaker names and timestamps for better readability<br/>
+                            TXT: Plain text • SRT: SubRip subtitles • VTT: WebVTT with speakers
                           </p>
                         </div>
                         <DialogFooter>
