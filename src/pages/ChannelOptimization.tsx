@@ -55,6 +55,7 @@ export const ChannelOptimization = () => {
   const [contextDialog, setContextDialog] = useState<{episodeId: string, type: 'title' | 'description' | 'hook'} | null>(null);
   const [additionalContext, setAdditionalContext] = useState("");
   const [savedSuggestions, setSavedSuggestions] = useState<Map<string, number[]>>(new Map());
+  const [deleteConfirmDialog, setDeleteConfirmDialog] = useState<{episodeId: string, type: string, index: number, text: string} | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -181,11 +182,12 @@ export const ChannelOptimization = () => {
       return;
     }
     
-    // Set loading state
+    // Preserve existing suggestions during loading
+    const existingSuggestion = aiSuggestions.get(suggestionKey);
     setAiSuggestions(prev => new Map(prev.set(suggestionKey, {
       id: suggestionKey,
       type: suggestionType,
-      suggestions: [],
+      suggestions: existingSuggestion?.suggestions || [],
       loading: true
     })));
 
@@ -231,7 +233,8 @@ export const ChannelOptimization = () => {
         throw new Error('No suggestions returned from AI');
       }
 
-      // Update suggestions state
+      // Update suggestions state, preserving any existing suggestions
+      const existingSuggestion = aiSuggestions.get(suggestionKey);
       setAiSuggestions(prev => new Map(prev.set(suggestionKey, {
         id: suggestionKey,
         type: suggestionType,
@@ -340,6 +343,47 @@ export const ChannelOptimization = () => {
         description: "Failed to save suggestion. Please try again.",
         variant: "destructive",
       });
+    }
+  };
+
+  const deleteSavedSuggestion = async (episodeId: string, suggestionType: string, suggestionIndex: number) => {
+    const suggestionKey = `${episodeId}-${suggestionType}`;
+    const currentSaved = savedSuggestions.get(suggestionKey) || [];
+    const newSavedList = currentSaved.filter(idx => idx !== suggestionIndex);
+
+    // Update local state immediately
+    setSavedSuggestions(prev => new Map(prev.set(suggestionKey, newSavedList)));
+
+    try {
+      // Get current user
+      const { data: currentUser, error: authError } = await supabase.auth.getUser();
+      if (authError || !currentUser.user) throw authError;
+
+      // Update database
+      const { error: updateError } = await supabase
+        .from('episode_suggestions')
+        .update({ saved_suggestions: newSavedList })
+        .eq('episode_id', episodeId)
+        .eq('suggestion_type', suggestionType)
+        .eq('user_id', currentUser.user.id);
+
+      if (updateError) throw updateError;
+
+      toast({
+        title: "Suggestion removed",
+        description: "Suggestion removed from saved suggestions",
+      });
+    } catch (error) {
+      console.error('Error deleting saved suggestion:', error);
+      // Revert local state on error
+      setSavedSuggestions(prev => new Map(prev.set(suggestionKey, currentSaved)));
+      toast({
+        title: "Error",
+        description: "Failed to remove suggestion. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setDeleteConfirmDialog(null);
     }
   };
 
@@ -1080,15 +1124,33 @@ export const ChannelOptimization = () => {
                           <div className="mt-3 p-2 bg-green-50 dark:bg-green-900/20 rounded border border-green-200 dark:border-green-700">
                             <h6 className="text-xs font-medium text-green-800 dark:text-green-200 mb-2">Saved Title Options</h6>
                             <div className="space-y-1">
-                              {savedTitles.map((title, idx) => (
-                                <div key={idx} className="text-xs p-2 bg-white dark:bg-gray-800 rounded border cursor-pointer hover:bg-muted/50 transition-colors"
-                                     onClick={() => {
-                                       navigator.clipboard.writeText(title);
-                                       toast({ title: "Copied to clipboard!", description: "Title copied successfully" });
-                                     }}>
-                                  {title}
-                                </div>
-                              ))}
+                              {savedTitles.map((title, idx) => {
+                                const originalIndex = savedTitleIndices[idx];
+                                return (
+                                  <div key={idx} className="flex items-center gap-2 text-xs p-2 bg-white dark:bg-gray-800 rounded border hover:bg-muted/50 transition-colors">
+                                    <div className="flex-1 cursor-pointer"
+                                         onClick={() => {
+                                           navigator.clipboard.writeText(title);
+                                           toast({ title: "Copied to clipboard!", description: "Title copied successfully" });
+                                         }}>
+                                      {title}
+                                    </div>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => setDeleteConfirmDialog({
+                                        episodeId: episodeScore.episode.id,
+                                        type: 'title',
+                                        index: originalIndex,
+                                        text: title
+                                      })}
+                                      className="h-6 w-6 p-0 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/20"
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                );
+                              })}
                             </div>
                           </div>
                         );
@@ -1172,15 +1234,33 @@ export const ChannelOptimization = () => {
                           <div className="mt-3 p-2 bg-green-50 dark:bg-green-900/20 rounded border border-green-200 dark:border-green-700">
                             <h6 className="text-xs font-medium text-green-800 dark:text-green-200 mb-2">Saved Description Options</h6>
                             <div className="space-y-1">
-                              {savedDescs.map((desc, idx) => (
-                                <div key={idx} className="text-xs p-2 bg-white dark:bg-gray-800 rounded border cursor-pointer hover:bg-muted/50 transition-colors"
-                                     onClick={() => {
-                                       navigator.clipboard.writeText(desc);
-                                       toast({ title: "Copied to clipboard!", description: "Description copied successfully" });
-                                     }}>
-                                  {desc}
-                                </div>
-                              ))}
+                              {savedDescs.map((desc, idx) => {
+                                const originalIndex = savedDescIndices[idx];
+                                return (
+                                  <div key={idx} className="flex items-center gap-2 text-xs p-2 bg-white dark:bg-gray-800 rounded border hover:bg-muted/50 transition-colors">
+                                    <div className="flex-1 cursor-pointer"
+                                         onClick={() => {
+                                           navigator.clipboard.writeText(desc);
+                                           toast({ title: "Copied to clipboard!", description: "Description copied successfully" });
+                                         }}>
+                                      {desc}
+                                    </div>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => setDeleteConfirmDialog({
+                                        episodeId: episodeScore.episode.id,
+                                        type: 'description',
+                                        index: originalIndex,
+                                        text: desc
+                                      })}
+                                      className="h-6 w-6 p-0 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/20"
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                );
+                              })}
                             </div>
                           </div>
                         );
@@ -1266,15 +1346,33 @@ export const ChannelOptimization = () => {
                           <div className="mt-3 p-2 bg-green-50 dark:bg-green-900/20 rounded border border-green-200 dark:border-green-700">
                             <h6 className="text-xs font-medium text-green-800 dark:text-green-200 mb-2">Saved Hook Options</h6>
                             <div className="space-y-1">
-                              {savedHooks.map((hook, idx) => (
-                                <div key={idx} className="text-xs p-2 bg-white dark:bg-gray-800 rounded border cursor-pointer hover:bg-muted/50 transition-colors"
-                                     onClick={() => {
-                                       navigator.clipboard.writeText(hook);
-                                       toast({ title: "Copied to clipboard!", description: "Hook copied successfully" });
-                                     }}>
-                                  {hook}
-                                </div>
-                              ))}
+                              {savedHooks.map((hook, idx) => {
+                                const originalIndex = savedHookIndices[idx];
+                                return (
+                                  <div key={idx} className="flex items-center gap-2 text-xs p-2 bg-white dark:bg-gray-800 rounded border hover:bg-muted/50 transition-colors">
+                                    <div className="flex-1 cursor-pointer"
+                                         onClick={() => {
+                                           navigator.clipboard.writeText(hook);
+                                           toast({ title: "Copied to clipboard!", description: "Hook copied successfully" });
+                                         }}>
+                                      {hook}
+                                    </div>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => setDeleteConfirmDialog({
+                                        episodeId: episodeScore.episode.id,
+                                        type: 'hook',
+                                        index: originalIndex,
+                                        text: hook
+                                      })}
+                                      className="h-6 w-6 p-0 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/20"
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                );
+                              })}
                             </div>
                           </div>
                         );
@@ -1552,6 +1650,45 @@ export const ChannelOptimization = () => {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={!!deleteConfirmDialog} onOpenChange={(open) => !open && setDeleteConfirmDialog(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remove Saved Suggestion</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to remove this saved suggestion? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="p-3 bg-muted/20 rounded-lg">
+            <p className="text-sm">{deleteConfirmDialog?.text}</p>
+          </div>
+          
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setDeleteConfirmDialog(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (deleteConfirmDialog) {
+                  deleteSavedSuggestion(
+                    deleteConfirmDialog.episodeId,
+                    deleteConfirmDialog.type,
+                    deleteConfirmDialog.index
+                  );
+                }
+              }}
+              variant="destructive"
+            >
+              Remove Suggestion
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
