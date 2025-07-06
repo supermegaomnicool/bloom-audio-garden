@@ -1066,6 +1066,83 @@ export const ChannelOptimization = () => {
                     <div className="p-3 bg-muted/20 rounded-lg">
                       <h5 className="text-xs font-medium text-muted-foreground mb-1">Current Title</h5>
                       <p className="text-sm">{episodeScore.episode.title}</p>
+                      
+                      {/* Saved Title Options */}
+                      {(() => {
+                        const titleSuggestionKey = `${episodeScore.episode.id}-title`;
+                        const savedTitleIndices = savedSuggestions.get(titleSuggestionKey) || [];
+                        const titleSuggestion = aiSuggestions.get(titleSuggestionKey);
+                        const savedTitles = savedTitleIndices
+                          .map(idx => titleSuggestion?.suggestions[idx])
+                          .filter(Boolean);
+                        
+                        return savedTitles.length > 0 && (
+                          <div className="mt-3 p-2 bg-green-50 dark:bg-green-900/20 rounded border border-green-200 dark:border-green-700">
+                            <h6 className="text-xs font-medium text-green-800 dark:text-green-200 mb-2">Saved Title Options</h6>
+                            <div className="space-y-1">
+                              {savedTitles.map((title, idx) => (
+                                <div key={idx} className="text-xs p-2 bg-white dark:bg-gray-800 rounded border cursor-pointer hover:bg-muted/50 transition-colors"
+                                     onClick={() => {
+                                       navigator.clipboard.writeText(title);
+                                       toast({ title: "Copied to clipboard!", description: "Title copied successfully" });
+                                     }}>
+                                  {title}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()}
+                      
+                      {/* AI Title Suggestions */}
+                      {(() => {
+                        const titleSuggestionKey = `${episodeScore.episode.id}-title`;
+                        const titleSuggestion = aiSuggestions.get(titleSuggestionKey);
+                        
+                        return titleSuggestion && !titleSuggestion.loading && (
+                          <div className="mt-3 p-3 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/10 dark:to-purple-900/10 rounded border border-blue-200 dark:border-blue-800">
+                            <h6 className="text-xs font-medium text-blue-800 dark:text-blue-200 mb-2 flex items-center gap-1">
+                              <Sparkles className="h-3 w-3" />
+                              AI Title Suggestions
+                            </h6>
+                            <div className="space-y-2">
+                              {titleSuggestion.suggestions.map((suggestionText, idx) => {
+                                const isSaved = savedSuggestions.get(titleSuggestionKey)?.includes(idx) || false;
+                                
+                                return !isSaved && (
+                                  <div key={idx} className="flex items-start gap-2 p-2 bg-white dark:bg-gray-800 rounded border border-border/50 hover:bg-muted/50 transition-all">
+                                    <Checkbox
+                                      checked={false}
+                                      onCheckedChange={() => toggleSaveSuggestion(episodeScore.episode.id, 'title', idx)}
+                                      className="mt-0.5"
+                                    />
+                                    <div className="flex-1">
+                                      <span className="text-xs text-muted-foreground">#{idx + 1}</span>
+                                      <p className="text-xs cursor-pointer hover:text-primary transition-colors"
+                                         onClick={() => {
+                                           navigator.clipboard.writeText(suggestionText);
+                                           toast({ title: "Copied to clipboard!", description: "Suggestion copied successfully" });
+                                         }}>
+                                        {suggestionText}
+                                      </p>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setContextDialog({episodeId: episodeScore.episode.id, type: 'title'})}
+                              className="text-xs mt-2 w-full"
+                            >
+                              <Sparkles className="h-3 w-3 mr-1" />
+                              Generate Again
+                            </Button>
+                          </div>
+                        );
+                      })()}
+                      
                       <Button
                         size="sm"
                         variant="outline"
@@ -1081,6 +1158,83 @@ export const ChannelOptimization = () => {
                     <div className="p-3 bg-muted/20 rounded-lg">
                       <h5 className="text-xs font-medium text-muted-foreground mb-1">Current Description</h5>
                       <p className="text-sm line-clamp-3">{episodeScore.episode.description?.replace(/<[^>]*>/g, '') || 'No description available'}</p>
+                      
+                      {/* Saved Description Options */}
+                      {(() => {
+                        const descSuggestionKey = `${episodeScore.episode.id}-description`;
+                        const savedDescIndices = savedSuggestions.get(descSuggestionKey) || [];
+                        const descSuggestion = aiSuggestions.get(descSuggestionKey);
+                        const savedDescs = savedDescIndices
+                          .map(idx => descSuggestion?.suggestions[idx])
+                          .filter(Boolean);
+                        
+                        return savedDescs.length > 0 && (
+                          <div className="mt-3 p-2 bg-green-50 dark:bg-green-900/20 rounded border border-green-200 dark:border-green-700">
+                            <h6 className="text-xs font-medium text-green-800 dark:text-green-200 mb-2">Saved Description Options</h6>
+                            <div className="space-y-1">
+                              {savedDescs.map((desc, idx) => (
+                                <div key={idx} className="text-xs p-2 bg-white dark:bg-gray-800 rounded border cursor-pointer hover:bg-muted/50 transition-colors"
+                                     onClick={() => {
+                                       navigator.clipboard.writeText(desc);
+                                       toast({ title: "Copied to clipboard!", description: "Description copied successfully" });
+                                     }}>
+                                  {desc}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()}
+                      
+                      {/* AI Description Suggestions */}
+                      {(() => {
+                        const descSuggestionKey = `${episodeScore.episode.id}-description`;
+                        const descSuggestion = aiSuggestions.get(descSuggestionKey);
+                        
+                        return descSuggestion && !descSuggestion.loading && (
+                          <div className="mt-3 p-3 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/10 dark:to-purple-900/10 rounded border border-blue-200 dark:border-blue-800">
+                            <h6 className="text-xs font-medium text-blue-800 dark:text-blue-200 mb-2 flex items-center gap-1">
+                              <Sparkles className="h-3 w-3" />
+                              AI Description Suggestions
+                            </h6>
+                            <div className="space-y-2">
+                              {descSuggestion.suggestions.map((suggestionText, idx) => {
+                                const isSaved = savedSuggestions.get(descSuggestionKey)?.includes(idx) || false;
+                                
+                                return !isSaved && (
+                                  <div key={idx} className="flex items-start gap-2 p-2 bg-white dark:bg-gray-800 rounded border border-border/50 hover:bg-muted/50 transition-all">
+                                    <Checkbox
+                                      checked={false}
+                                      onCheckedChange={() => toggleSaveSuggestion(episodeScore.episode.id, 'description', idx)}
+                                      className="mt-0.5"
+                                    />
+                                    <div className="flex-1">
+                                      <span className="text-xs text-muted-foreground">#{idx + 1}</span>
+                                      <p className="text-xs cursor-pointer hover:text-primary transition-colors line-clamp-2"
+                                         onClick={() => {
+                                           navigator.clipboard.writeText(suggestionText);
+                                           toast({ title: "Copied to clipboard!", description: "Suggestion copied successfully" });
+                                         }}>
+                                        {suggestionText}
+                                      </p>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setContextDialog({episodeId: episodeScore.episode.id, type: 'description'})}
+                              className="text-xs mt-2 w-full"
+                            >
+                              <Sparkles className="h-3 w-3 mr-1" />
+                              Generate Again
+                            </Button>
+                          </div>
+                        );
+                      })()}
+                      
                       <Button
                         size="sm"
                         variant="outline"
@@ -1098,6 +1252,83 @@ export const ChannelOptimization = () => {
                       <p className="text-sm line-clamp-2">
                         {episodeScore.episode.description?.replace(/<[^>]*>/g, '').split('.')[0] || 'No opening hook available'}
                       </p>
+                      
+                      {/* Saved Hook Options */}
+                      {(() => {
+                        const hookSuggestionKey = `${episodeScore.episode.id}-hook`;
+                        const savedHookIndices = savedSuggestions.get(hookSuggestionKey) || [];
+                        const hookSuggestion = aiSuggestions.get(hookSuggestionKey);
+                        const savedHooks = savedHookIndices
+                          .map(idx => hookSuggestion?.suggestions[idx])
+                          .filter(Boolean);
+                        
+                        return savedHooks.length > 0 && (
+                          <div className="mt-3 p-2 bg-green-50 dark:bg-green-900/20 rounded border border-green-200 dark:border-green-700">
+                            <h6 className="text-xs font-medium text-green-800 dark:text-green-200 mb-2">Saved Hook Options</h6>
+                            <div className="space-y-1">
+                              {savedHooks.map((hook, idx) => (
+                                <div key={idx} className="text-xs p-2 bg-white dark:bg-gray-800 rounded border cursor-pointer hover:bg-muted/50 transition-colors"
+                                     onClick={() => {
+                                       navigator.clipboard.writeText(hook);
+                                       toast({ title: "Copied to clipboard!", description: "Hook copied successfully" });
+                                     }}>
+                                  {hook}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()}
+                      
+                      {/* AI Hook Suggestions */}
+                      {(() => {
+                        const hookSuggestionKey = `${episodeScore.episode.id}-hook`;
+                        const hookSuggestion = aiSuggestions.get(hookSuggestionKey);
+                        
+                        return hookSuggestion && !hookSuggestion.loading && (
+                          <div className="mt-3 p-3 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/10 dark:to-purple-900/10 rounded border border-blue-200 dark:border-blue-800">
+                            <h6 className="text-xs font-medium text-blue-800 dark:text-blue-200 mb-2 flex items-center gap-1">
+                              <Sparkles className="h-3 w-3" />
+                              AI Hook Suggestions
+                            </h6>
+                            <div className="space-y-2">
+                              {hookSuggestion.suggestions.map((suggestionText, idx) => {
+                                const isSaved = savedSuggestions.get(hookSuggestionKey)?.includes(idx) || false;
+                                
+                                return !isSaved && (
+                                  <div key={idx} className="flex items-start gap-2 p-2 bg-white dark:bg-gray-800 rounded border border-border/50 hover:bg-muted/50 transition-all">
+                                    <Checkbox
+                                      checked={false}
+                                      onCheckedChange={() => toggleSaveSuggestion(episodeScore.episode.id, 'hook', idx)}
+                                      className="mt-0.5"
+                                    />
+                                    <div className="flex-1">
+                                      <span className="text-xs text-muted-foreground">#{idx + 1}</span>
+                                      <p className="text-xs cursor-pointer hover:text-primary transition-colors"
+                                         onClick={() => {
+                                           navigator.clipboard.writeText(suggestionText);
+                                           toast({ title: "Copied to clipboard!", description: "Suggestion copied successfully" });
+                                         }}>
+                                        {suggestionText}
+                                      </p>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setContextDialog({episodeId: episodeScore.episode.id, type: 'hook'})}
+                              className="text-xs mt-2 w-full"
+                            >
+                              <Sparkles className="h-3 w-3 mr-1" />
+                              Generate Again
+                            </Button>
+                          </div>
+                        );
+                      })()}
+                      
                       <Button
                         size="sm"
                         variant="outline"
@@ -1112,73 +1343,6 @@ export const ChannelOptimization = () => {
                   </div>
                 </div>
 
-                {/* AI Suggestions Display */}
-                {Array.from(aiSuggestions.entries())
-                  .filter(([key]) => key.startsWith(episodeScore.episode.id))
-                  .map(([key, suggestion]) => (
-                    <div key={key} className="p-4 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/10 dark:to-purple-900/10 rounded-lg border border-blue-200 dark:border-blue-800">
-                      <h5 className="text-sm font-medium flex items-center gap-2 mb-3">
-                        <Sparkles className="h-4 w-4 text-blue-600" />
-                        AI-Generated {suggestion.type.charAt(0).toUpperCase() + suggestion.type.slice(1)} Suggestions
-                      </h5>
-                      
-                      {suggestion.loading ? (
-                        <div className="space-y-2">
-                          {[...Array(3)].map((_, i) => (
-                            <div key={i} className="h-4 bg-muted rounded animate-pulse"></div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
-                          {suggestion.suggestions.map((suggestionText, idx) => {
-                            const suggestionKey = `${episodeScore.episode.id}-${suggestion.type}`;
-                            const isSaved = savedSuggestions.get(suggestionKey)?.includes(idx) || false;
-                            
-                            return (
-                              <div 
-                                key={idx} 
-                                className={`p-3 bg-white dark:bg-gray-800 rounded border transition-all ${
-                                  isSaved 
-                                    ? 'border-green-300 bg-green-50 dark:bg-green-900/20 dark:border-green-700' 
-                                    : 'border-border/50 hover:bg-muted/50'
-                                }`}
-                              >
-                                <div className="flex items-start gap-3">
-                                  <Checkbox
-                                    checked={isSaved}
-                                    onCheckedChange={() => toggleSaveSuggestion(episodeScore.episode.id, suggestion.type, idx)}
-                                    className="mt-0.5"
-                                  />
-                                  <div className="flex-1">
-                                    <div className="flex items-center gap-2 mb-1">
-                                      <span className="text-xs text-muted-foreground">#{idx + 1}</span>
-                                      {isSaved && (
-                                        <Badge variant="secondary" className="text-xs bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300">
-                                          Saved
-                                        </Badge>
-                                      )}
-                                    </div>
-                                    <p 
-                                      className="text-sm cursor-pointer hover:text-primary transition-colors"
-                                      onClick={() => {
-                                        navigator.clipboard.writeText(suggestionText);
-                                        toast({ title: "Copied to clipboard!", description: "Suggestion copied successfully" });
-                                      }}
-                                    >
-                                      {suggestionText}
-                                    </p>
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })}
-                          <p className="text-xs text-muted-foreground mt-2">
-                            💡 Click any suggestion to copy it • Check the box to save favorites
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  ))}
 
                 {/* Quick Stats */}
                 <div className="flex flex-wrap gap-4 text-xs text-muted-foreground pt-2 border-t">
