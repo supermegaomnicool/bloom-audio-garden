@@ -1217,9 +1217,9 @@ export const ChannelOptimization = () => {
                       </Button>
                     </div>
                     
-                    <div className="p-3 bg-muted/20 rounded-lg">
-                      <h5 className="text-xs font-medium text-muted-foreground mb-1">Current Description</h5>
-                      <p className="text-sm line-clamp-3">{episodeScore.episode.description?.replace(/<[^>]*>/g, '') || 'No description available'}</p>
+                    <div className="p-4 bg-muted/30 rounded-lg border">
+                      <h5 className="text-sm font-semibold text-foreground mb-2">Current Description</h5>
+                      <p className="text-sm leading-relaxed">{episodeScore.episode.description?.replace(/<[^>]*>/g, '') || 'No description available'}</p>
                       
                       {/* Saved Description Options */}
                       {(() => {
@@ -1327,9 +1327,9 @@ export const ChannelOptimization = () => {
                       </Button>
                     </div>
                     
-                    <div className="p-3 bg-muted/20 rounded-lg">
-                      <h5 className="text-xs font-medium text-muted-foreground mb-1">Current Opening Hook</h5>
-                      <p className="text-sm line-clamp-2">
+                    <div className="p-4 bg-muted/30 rounded-lg border">
+                      <h5 className="text-sm font-semibold text-foreground mb-2">Current Opening Hook</h5>
+                      <p className="text-sm leading-relaxed">
                         {episodeScore.episode.description?.replace(/<[^>]*>/g, '').split('.')[0] || 'No opening hook available'}
                       </p>
                       
