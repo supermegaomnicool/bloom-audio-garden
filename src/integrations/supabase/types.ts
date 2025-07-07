@@ -66,6 +66,45 @@ export type Database = {
         }
         Relationships: []
       }
+      content_ideas: {
+        Row: {
+          channel_name: string | null
+          created_at: string
+          episode_id: string
+          episode_title: string | null
+          generated_ideas: Json
+          id: string
+          saved_ideas: number[] | null
+          updated_at: string
+          user_id: string
+          user_notes: string | null
+        }
+        Insert: {
+          channel_name?: string | null
+          created_at?: string
+          episode_id: string
+          episode_title?: string | null
+          generated_ideas: Json
+          id?: string
+          saved_ideas?: number[] | null
+          updated_at?: string
+          user_id: string
+          user_notes?: string | null
+        }
+        Update: {
+          channel_name?: string | null
+          created_at?: string
+          episode_id?: string
+          episode_title?: string | null
+          generated_ideas?: Json
+          id?: string
+          saved_ideas?: number[] | null
+          updated_at?: string
+          user_id?: string
+          user_notes?: string | null
+        }
+        Relationships: []
+      }
       episode_suggestions: {
         Row: {
           ai_suggestions: Json
