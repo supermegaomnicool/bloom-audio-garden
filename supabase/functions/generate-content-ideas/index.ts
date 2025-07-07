@@ -14,10 +14,10 @@ serve(async (req) => {
   }
 
   try {
-    const { episodeId, episodeTitle, episodeDescription, transcript, channelName } = await req.json();
+    const { channelId, channelName, allEpisodes } = await req.json();
 
-    if (!episodeId || !episodeTitle) {
-      throw new Error('Missing required parameters');
+    if (!channelId || !channelName || !allEpisodes || !Array.isArray(allEpisodes)) {
+      throw new Error('Missing required parameters: channelId, channelName, and allEpisodes array');
     }
 
     const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
@@ -43,59 +43,42 @@ serve(async (req) => {
       throw new Error('Invalid user token');
     }
 
-    // First, get industry trends using web search (simplified approach)
-    let industryContext = '';
-    try {
-      // We'll simulate web search results with common industry trends
-      // In a real implementation, you'd use a web search API
-      const industryKeywords = extractIndustryKeywords(episodeTitle, episodeDescription || '', channelName);
-      industryContext = `Current trending topics in ${industryKeywords.join(', ')} industry: 
-        - AI and automation trends
-        - Sustainability and eco-friendly practices
-        - Remote work and digital transformation
-        - Mental health and wellness focus
-        - Social media marketing evolution
-        - Customer experience optimization
-        - Data privacy and security concerns
-        - Emerging technology adoption`;
-    } catch (error) {
-      console.log('Could not fetch industry trends, proceeding without:', error);
-    }
+    // Prepare comprehensive content analysis
+    const episodesSummary = allEpisodes.map(ep => 
+      `Title: "${ep.title}"${ep.description ? ` | Description: ${ep.description.substring(0, 200)}` : ''}${ep.transcript ? ` | Key content: ${ep.transcript.substring(0, 300)}` : ''}`
+    ).join('\n\n');
 
-    // Prepare content for AI analysis
-    let contentSummary = `Episode: "${episodeTitle}" from "${channelName}"`;
-    if (episodeDescription) {
-      contentSummary += `\nDescription: ${episodeDescription.substring(0, 800)}`;
-    }
-    if (transcript) {
-      contentSummary += `\nContent highlights: ${transcript.substring(0, 1500)}`;
-    }
+    // Extract industry keywords and themes from all episodes
+    const allTitles = allEpisodes.map(ep => ep.title).join(' ');
+    const allDescriptions = allEpisodes.map(ep => ep.description || '').join(' ');
+    const industryKeywords = extractIndustryKeywords(allTitles, allDescriptions, channelName);
 
-    const systemPrompt = `You are an expert content strategist and trend analyst. Generate content ideas that fill gaps and leverage trending topics for podcast episodes.
+    const systemPrompt = `You are an expert content strategist and trend analyst. You specialize in identifying content gaps and opportunities by analyzing an entire podcast/channel catalog.
 
-Your task is to analyze the provided episode content and suggest new content ideas that:
-1. Complement the existing content without duplicating it
-2. Leverage current industry trends and popular topics
-3. Would appeal to the same audience
-4. Are specific and actionable
+Your task is to:
+1. Analyze ALL episodes from "${channelName}" to understand the channel's content themes and coverage
+2. Identify significant content gaps - popular topics in the industry that haven't been covered
+3. Suggest trending topics that would complement the existing content library
+4. Consider what the audience would expect to see but is currently missing
 
-Format your response as exactly 5 content ideas, each as a complete paragraph (2-4 sentences) that includes:
-- A compelling hook or angle
-- Specific talking points or elements to cover
-- Why it's timely/trending
-- How it connects to the channel's audience
+Focus on content gaps, not episode improvements. Think strategically about the overall content portfolio.`;
 
-Make each idea distinct and valuable. Include bullet points within paragraphs where helpful for specific elements or tips.`;
+    const userPrompt = `Channel: "${channelName}" (${allEpisodes.length} episodes)
+Industry Context: ${industryKeywords.join(', ')}
 
-    const userPrompt = `${contentSummary}
+ALL EPISODES SUMMARY:
+${episodesSummary}
 
-${industryContext}
+Based on this complete content analysis, identify 5 significant content gaps - popular topics/themes in this space that are notably missing from the channel's coverage. For each gap, explain:
 
-Based on this episode content and current industry trends, suggest 5 new content ideas that would complement this episode and appeal to the same audience. Each idea should be a full paragraph with specific details, potential talking points (as bullet points within the paragraph), and explain why it's relevant right now.
+1. What the missing content opportunity is
+2. Why it's valuable/trending in this industry
+3. Specific angles or approaches that would work well for this channel's audience
+4. How it would complement the existing content library
 
-Focus on content gaps - what related topics haven't been covered that the audience would find valuable? Consider trending themes, common questions, and emerging topics in the industry.
+Focus on strategic content opportunities that would strengthen the overall channel positioning. Each suggestion should be 2-3 sentences with specific, actionable direction.
 
-Return only the 5 content ideas as a JSON array of strings, with no additional text or formatting.`;
+Return only a JSON array of 5 content gap strings, no additional text.`;
 
     // Generate ideas using OpenAI
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -147,14 +130,14 @@ Return only the 5 content ideas as a JSON array of strings, with no additional t
         .slice(0, 5);
     }
 
-    // Save ideas to database
+    // Save ideas to database using channelId as episode_id for channel-wide analysis
     const { data: savedIdeas, error: saveError } = await supabase
       .from('content_ideas')
       .upsert({
-        episode_id: episodeId,
+        episode_id: channelId, // Using channelId for channel-wide analysis
         user_id: userData.user.id,
         channel_name: channelName,
-        episode_title: episodeTitle,
+        episode_title: `${channelName} - Content Gap Analysis`,
         generated_ideas: ideas
       }, { 
         onConflict: 'episode_id,user_id',
@@ -186,14 +169,15 @@ Return only the 5 content ideas as a JSON array of strings, with no additional t
 });
 
 // Helper function to extract industry keywords from content
-function extractIndustryKeywords(title: string, description: string, channelName: string): string[] {
-  const content = `${title} ${description} ${channelName}`.toLowerCase();
+function extractIndustryKeywords(titles: string, descriptions: string, channelName: string): string[] {
+  const content = `${titles} ${descriptions} ${channelName}`.toLowerCase();
   
   const industryKeywords = [
     'technology', 'business', 'marketing', 'finance', 'health', 'fitness',
     'education', 'entertainment', 'science', 'startup', 'entrepreneurship',
     'design', 'productivity', 'leadership', 'sales', 'customer service',
-    'digital', 'social media', 'content', 'personal development', 'career'
+    'digital', 'social media', 'content', 'personal development', 'career',
+    'innovation', 'strategy', 'growth', 'management', 'coaching'
   ];
   
   const found = industryKeywords.filter(keyword => content.includes(keyword));

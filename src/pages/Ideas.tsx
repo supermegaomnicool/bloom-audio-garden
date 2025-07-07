@@ -15,10 +15,6 @@ interface Episode {
   title: string;
   description: string | null;
   transcript: string | null;
-  channel: {
-    id: string;
-    name: string;
-  };
 }
 
 interface ContentIdea {
@@ -50,10 +46,10 @@ export const Ideas = () => {
   }, [channelId, user]);
 
   useEffect(() => {
-    if (selectedEpisode) {
-      fetchContentIdeas(selectedEpisode.id);
+    if (channelId && channel) {
+      fetchContentIdeas();
     }
-  }, [selectedEpisode]);
+  }, [channelId, channel]);
 
   const fetchChannelAndEpisodes = async () => {
     if (!user || !channelId) return;
@@ -65,20 +61,30 @@ export const Ideas = () => {
         .select('id, name')
         .eq('id', channelId)
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
 
       if (channelError) throw channelError;
+      
+      if (!channelData) {
+        toast({
+          title: "Channel not found",
+          description: "This channel doesn't exist or you don't have access to it.",
+          variant: "destructive",
+        });
+        navigate("/");
+        return;
+      }
+      
       setChannel(channelData);
 
-      // Fetch episodes for this channel
+      // Fetch ALL episodes for this channel for comprehensive analysis
       const { data: episodesData, error: episodesError } = await supabase
         .from('episodes')
         .select(`
           id,
           title,
           description,
-          transcript,
-          channel:channels(id, name)
+          transcript
         `)
         .eq('channel_id', channelId)
         .eq('user_id', user.id)
@@ -86,9 +92,6 @@ export const Ideas = () => {
 
       if (episodesError) throw episodesError;
       setEpisodes(episodesData || []);
-      if (episodesData && episodesData.length > 0) {
-        setSelectedEpisode(episodesData[0]);
-      }
     } catch (error) {
       console.error('Error fetching channel and episodes:', error);
       toast({
@@ -101,14 +104,14 @@ export const Ideas = () => {
     }
   };
 
-  const fetchContentIdeas = async (episodeId: string) => {
-    if (!user) return;
+  const fetchContentIdeas = async () => {
+    if (!user || !channelId) return;
 
     try {
       const { data, error } = await supabase
         .from('content_ideas')
         .select('*')
-        .eq('episode_id', episodeId)
+        .eq('episode_id', channelId) // Using channelId as the key for channel-wide analysis
         .eq('user_id', user.id)
         .maybeSingle();
 
@@ -135,27 +138,30 @@ export const Ideas = () => {
   };
 
   const generateIdeas = async () => {
-    if (!selectedEpisode || !user) return;
+    if (!channel || !episodes.length || !user) return;
 
     setIsGenerating(true);
     try {
       const { data, error } = await supabase.functions.invoke('generate-content-ideas', {
         body: {
-          episodeId: selectedEpisode.id,
-          episodeTitle: selectedEpisode.title,
-          episodeDescription: selectedEpisode.description,
-          transcript: selectedEpisode.transcript,
-          channelName: selectedEpisode.channel.name
+          channelId: channel.id,
+          channelName: channel.name,
+          allEpisodes: episodes.map(ep => ({
+            id: ep.id,
+            title: ep.title,
+            description: ep.description,
+            transcript: ep.transcript?.substring(0, 2000) // Limit transcript length
+          }))
         }
       });
 
       if (error) throw error;
 
       if (data.ideas) {
-        await fetchContentIdeas(selectedEpisode.id);
+        await fetchContentIdeas();
         toast({
           title: "Ideas Generated",
-          description: "New content ideas have been generated successfully!",
+          description: "Content gap analysis completed successfully!",
         });
       }
     } catch (error) {
@@ -189,7 +195,7 @@ export const Ideas = () => {
   };
 
   const saveIdeas = async () => {
-    if (!selectedEpisode || !user || !contentIdeas) return;
+    if (!channel || !user || !contentIdeas) return;
 
     setIsSaving(true);
     try {
@@ -260,198 +266,174 @@ export const Ideas = () => {
       </div>
 
       <div className="container mx-auto px-6 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          {/* Episode Selection */}
-          <div className="lg:col-span-1">
+        {channel ? (
+          <div className="space-y-6">
+            {/* Channel Overview */}
             <Card className="shadow-soft border-border/50">
               <CardHeader>
-                <CardTitle className="text-lg">Select Episode</CardTitle>
-                <CardDescription>
-                  Choose an episode to generate content ideas for
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {episodes.map((episode) => (
-                  <div
-                    key={episode.id}
-                    className={`p-3 rounded-lg border cursor-pointer transition-all ${
-                      selectedEpisode?.id === episode.id 
-                        ? 'bg-primary/10 border-primary' 
-                        : 'bg-background hover:bg-muted/50'
-                    }`}
-                    onClick={() => setSelectedEpisode(episode)}
-                  >
-                    <div className="font-medium text-sm line-clamp-2">
-                      {episode.title}
-                    </div>
-                    <div className="text-xs text-muted-foreground mt-1">
-                      {episode.channel.name}
-                    </div>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <CardTitle className="text-lg">{channel.name}</CardTitle>
+                    <CardDescription>
+                      Analyzing {episodes.length} episodes for content gaps and trending opportunities
+                    </CardDescription>
                   </div>
-                ))}
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Main Content */}
-          <div className="lg:col-span-3">
-            {selectedEpisode ? (
-              <div className="space-y-6">
-                {/* Episode Info */}
-                <Card className="shadow-soft border-border/50">
-                  <CardHeader>
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <CardTitle className="text-lg">{selectedEpisode.title}</CardTitle>
-                        <CardDescription>
-                          {selectedEpisode.channel.name}
-                        </CardDescription>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button
-                          onClick={generateIdeas}
-                          disabled={isGenerating}
-                          variant="nature"
-                          className="flex items-center gap-2"
-                        >
-                          {isGenerating ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Sparkles className="h-4 w-4" />
-                          )}
-                          {isGenerating ? 'Generating...' : 'Generate Ideas'}
-                        </Button>
-                        {contentIdeas && (
-                          <Button
-                            onClick={generateIdeas}
-                            disabled={isGenerating}
-                            variant="outline"
-                            size="sm"
-                            className="flex items-center gap-2"
-                          >
-                            <RefreshCw className="h-4 w-4" />
-                            Regenerate
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  </CardHeader>
-                </Card>
-
-                {/* Generated Ideas */}
-                {contentIdeas && (
-                  <Card className="shadow-soft border-border/50">
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Lightbulb className="h-5 w-5 text-primary" />
-                        Content Ideas & Trending Topics
-                      </CardTitle>
-                      <CardDescription>
-                        AI-generated ideas based on your content and current industry trends
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      {contentIdeas.generated_ideas.map((idea, index) => (
-                        <div
-                          key={index}
-                          className="flex items-start space-x-3 p-4 rounded-lg border bg-muted/20"
-                        >
-                          <Checkbox
-                            id={`idea-${index}`}
-                            checked={contentIdeas.saved_ideas?.includes(index) || false}
-                            onCheckedChange={() => toggleSavedIdea(index)}
-                            className="mt-1"
-                          />
-                          <div className="flex-1">
-                            <label
-                              htmlFor={`idea-${index}`}
-                              className="text-sm leading-relaxed cursor-pointer"
-                            >
-                              {idea}
-                            </label>
-                          </div>
-                        </div>
-                      ))}
-
-                      {/* User Notes */}
-                      <div className="mt-6 space-y-3">
-                        <label className="text-sm font-medium">Your Notes</label>
-                        <Textarea
-                          placeholder="Add your thoughts about these ideas..."
-                          value={userNotes}
-                          onChange={(e) => setUserNotes(e.target.value)}
-                          className="min-h-[100px]"
-                        />
-                      </div>
-
-                      {/* Save Button */}
-                      <div className="flex justify-end pt-4">
-                        <Button
-                          onClick={saveIdeas}
-                          disabled={isSaving}
-                          variant="nature"
-                          className="flex items-center gap-2"
-                        >
-                          {isSaving ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Save className="h-4 w-4" />
-                          )}
-                          Save Ideas & Notes
-                        </Button>
-                      </div>
-
-                      {/* Saved Ideas Summary */}
-                      {contentIdeas.saved_ideas && contentIdeas.saved_ideas.length > 0 && (
-                        <div className="mt-4 p-3 bg-primary/10 rounded-lg">
-                          <div className="flex items-center gap-2 mb-2">
-                            <Badge variant="secondary">
-                              {contentIdeas.saved_ideas.length} ideas saved
-                            </Badge>
-                          </div>
-                          <p className="text-xs text-muted-foreground">
-                            Your saved ideas will be available for future reference and planning.
-                          </p>
-                        </div>
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={generateIdeas}
+                      disabled={isGenerating || episodes.length === 0}
+                      variant="nature"
+                      className="flex items-center gap-2"
+                    >
+                      {isGenerating ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Sparkles className="h-4 w-4" />
                       )}
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* Empty State */}
-                {!contentIdeas && !isGenerating && (
-                  <Card className="shadow-soft border-border/50">
-                    <CardContent className="text-center py-12">
-                      <Lightbulb className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                      <h3 className="text-lg font-medium mb-2">No Ideas Generated Yet</h3>
-                      <p className="text-muted-foreground mb-4">
-                        Click "Generate Ideas" to discover trending content opportunities
-                      </p>
+                      {isGenerating ? 'Analyzing Content...' : 'Analyze Content Gaps'}
+                    </Button>
+                    {contentIdeas && (
                       <Button
                         onClick={generateIdeas}
-                        variant="nature"
+                        disabled={isGenerating}
+                        variant="outline"
+                        size="sm"
                         className="flex items-center gap-2"
                       >
-                        <Sparkles className="h-4 w-4" />
-                        Generate Ideas
+                        <RefreshCw className="h-4 w-4" />
+                        Regenerate
                       </Button>
-                    </CardContent>
-                  </Card>
-                )}
-              </div>
-            ) : (
+                    )}
+                  </div>
+                </div>
+              </CardHeader>
+            </Card>
+
+            {/* Generated Ideas */}
+            {contentIdeas && (
+              <Card className="shadow-soft border-border/50">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Lightbulb className="h-5 w-5 text-primary" />
+                    Missing Content Opportunities
+                  </CardTitle>
+                  <CardDescription>
+                    AI-identified content gaps based on your {episodes.length} episodes and current industry trends
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {contentIdeas.generated_ideas.map((idea, index) => (
+                    <div
+                      key={index}
+                      className="flex items-start space-x-3 p-4 rounded-lg border bg-muted/20"
+                    >
+                      <Checkbox
+                        id={`idea-${index}`}
+                        checked={contentIdeas.saved_ideas?.includes(index) || false}
+                        onCheckedChange={() => toggleSavedIdea(index)}
+                        className="mt-1"
+                      />
+                      <div className="flex-1">
+                        <label
+                          htmlFor={`idea-${index}`}
+                          className="text-sm leading-relaxed cursor-pointer"
+                        >
+                          {idea}
+                        </label>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* User Notes */}
+                  <div className="mt-6 space-y-3">
+                    <label className="text-sm font-medium">Your Notes</label>
+                    <Textarea
+                      placeholder="Add your thoughts about these content opportunities..."
+                      value={userNotes}
+                      onChange={(e) => setUserNotes(e.target.value)}
+                      className="min-h-[100px]"
+                    />
+                  </div>
+
+                  {/* Save Button */}
+                  <div className="flex justify-end pt-4">
+                    <Button
+                      onClick={saveIdeas}
+                      disabled={isSaving}
+                      variant="nature"
+                      className="flex items-center gap-2"
+                    >
+                      {isSaving ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Save className="h-4 w-4" />
+                      )}
+                      Save Ideas & Notes
+                    </Button>
+                  </div>
+
+                  {/* Saved Ideas Summary */}
+                  {contentIdeas.saved_ideas && contentIdeas.saved_ideas.length > 0 && (
+                    <div className="mt-4 p-3 bg-primary/10 rounded-lg">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Badge variant="secondary">
+                          {contentIdeas.saved_ideas.length} opportunities saved
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Your saved content opportunities will be available for future planning and production.
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Empty State */}
+            {!contentIdeas && !isGenerating && episodes.length > 0 && (
               <Card className="shadow-soft border-border/50">
                 <CardContent className="text-center py-12">
                   <Lightbulb className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-medium mb-2">Select an Episode</h3>
+                  <h3 className="text-lg font-medium mb-2">Ready to Find Content Gaps</h3>
+                  <p className="text-muted-foreground mb-4">
+                    I'll analyze all {episodes.length} episodes to identify trending content opportunities you haven't covered yet
+                  </p>
+                  <Button
+                    onClick={generateIdeas}
+                    variant="nature"
+                    className="flex items-center gap-2"
+                  >
+                    <Sparkles className="h-4 w-4" />
+                    Analyze Content Gaps
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* No Episodes State */}
+            {episodes.length === 0 && (
+              <Card className="shadow-soft border-border/50">
+                <CardContent className="text-center py-12">
+                  <Lightbulb className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-lg font-medium mb-2">No Episodes Found</h3>
                   <p className="text-muted-foreground">
-                    Choose an episode from the list to generate content ideas
+                    This channel doesn't have any episodes yet. Import some episodes to analyze content gaps.
                   </p>
                 </CardContent>
               </Card>
             )}
           </div>
-        </div>
+        ) : (
+          <Card className="shadow-soft border-border/50">
+            <CardContent className="text-center py-12">
+              <Lightbulb className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-medium mb-2">Channel Not Found</h3>
+              <p className="text-muted-foreground">
+                This channel doesn't exist or you don't have access to it.
+              </p>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );
