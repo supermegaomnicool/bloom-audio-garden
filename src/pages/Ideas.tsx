@@ -119,6 +119,10 @@ export const Ideas = () => {
       if (error && error.code !== 'PGRST116') throw error;
       
       if (data) {
+        console.log('Raw content ideas data:', data);
+        console.log('Generated ideas raw:', data.generated_ideas);
+        console.log('Is generated_ideas an array?', Array.isArray(data.generated_ideas));
+        
         // Convert the JSON data to proper types
         const convertedData: ContentIdea = {
           ...data,
@@ -127,6 +131,10 @@ export const Ideas = () => {
             : [],
           saved_ideas: Array.isArray(data.saved_ideas) ? data.saved_ideas : []
         };
+        
+        console.log('Converted ideas:', convertedData.generated_ideas);
+        console.log('Ideas count:', convertedData.generated_ideas.length);
+        
         setContentIdeas(convertedData);
         setUserNotes(data.user_notes || "");
       } else {
