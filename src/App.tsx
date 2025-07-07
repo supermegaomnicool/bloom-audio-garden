@@ -28,7 +28,7 @@ const App = () => (
             <Route path="/episodes/:channelId" element={<ProtectedRoute><Episodes /></ProtectedRoute>} />
             <Route path="/optimize" element={<ProtectedRoute><GlobalOptimization /></ProtectedRoute>} />
             <Route path="/optimize/:channelId" element={<ProtectedRoute><ChannelOptimization /></ProtectedRoute>} />
-            <Route path="/ideas" element={<ProtectedRoute><Ideas /></ProtectedRoute>} />
+            <Route path="/ideas/:channelId" element={<ProtectedRoute><Ideas /></ProtectedRoute>} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

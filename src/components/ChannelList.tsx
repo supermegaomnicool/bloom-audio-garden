@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { Youtube, Video, Users, Calendar, TrendingUp, ExternalLink, RefreshCw, Trash2, Edit3, Save, X, MoreVertical } from "lucide-react";
+import { Youtube, Video, Users, Calendar, TrendingUp, ExternalLink, RefreshCw, Trash2, Edit3, Save, X, MoreVertical, Lightbulb } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Tables } from "@/integrations/supabase/types";
@@ -382,6 +382,16 @@ export const ChannelList = () => {
                   onClick={() => navigate(`/optimize/${channel.id}`)}
                 >
                   Optimize
+                </Button>
+                
+                <Button 
+                  variant="nature" 
+                  size="sm"
+                  onClick={() => navigate(`/ideas/${channel.id}`)}
+                  className="flex items-center gap-1"
+                >
+                  <Lightbulb className="h-4 w-4" />
+                  New Ideas
                 </Button>
               </div>
             </div>

@@ -168,13 +168,6 @@ export const Dashboard = () => {
                   🎯 Optimize All Episodes
                 </Button>
                 <Button 
-                  onClick={() => navigate("/ideas")}
-                  variant="nature" 
-                  className="w-full justify-start"
-                >
-                  💡 New Ideas
-                </Button>
-                <Button 
                   onClick={() => setShowAddChannel(true)}
                   variant="outline" 
                   className="w-full justify-start"

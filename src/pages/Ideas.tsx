@@ -5,7 +5,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Lightbulb, Sparkles, RefreshCw, Save, Loader2 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -31,8 +31,10 @@ interface ContentIdea {
 
 export const Ideas = () => {
   const navigate = useNavigate();
+  const { channelId } = useParams<{ channelId: string }>();
   const { user } = useAuth();
   const { toast } = useToast();
+  const [channel, setChannel] = useState<{ id: string; name: string } | null>(null);
   const [episodes, setEpisodes] = useState<Episode[]>([]);
   const [selectedEpisode, setSelectedEpisode] = useState<Episode | null>(null);
   const [contentIdeas, setContentIdeas] = useState<ContentIdea | null>(null);
@@ -42,8 +44,10 @@ export const Ideas = () => {
   const [userNotes, setUserNotes] = useState("");
 
   useEffect(() => {
-    fetchEpisodes();
-  }, [user]);
+    if (channelId) {
+      fetchChannelAndEpisodes();
+    }
+  }, [channelId, user]);
 
   useEffect(() => {
     if (selectedEpisode) {
@@ -51,11 +55,23 @@ export const Ideas = () => {
     }
   }, [selectedEpisode]);
 
-  const fetchEpisodes = async () => {
-    if (!user) return;
+  const fetchChannelAndEpisodes = async () => {
+    if (!user || !channelId) return;
 
     try {
-      const { data, error } = await supabase
+      // Fetch channel info
+      const { data: channelData, error: channelError } = await supabase
+        .from('channels')
+        .select('id, name')
+        .eq('id', channelId)
+        .eq('user_id', user.id)
+        .single();
+
+      if (channelError) throw channelError;
+      setChannel(channelData);
+
+      // Fetch episodes for this channel
+      const { data: episodesData, error: episodesError } = await supabase
         .from('episodes')
         .select(`
           id,
@@ -64,19 +80,20 @@ export const Ideas = () => {
           transcript,
           channel:channels(id, name)
         `)
+        .eq('channel_id', channelId)
         .eq('user_id', user.id)
         .order('published_at', { ascending: false });
 
-      if (error) throw error;
-      setEpisodes(data || []);
-      if (data && data.length > 0) {
-        setSelectedEpisode(data[0]);
+      if (episodesError) throw episodesError;
+      setEpisodes(episodesData || []);
+      if (episodesData && episodesData.length > 0) {
+        setSelectedEpisode(episodesData[0]);
       }
     } catch (error) {
-      console.error('Error fetching episodes:', error);
+      console.error('Error fetching channel and episodes:', error);
       toast({
         title: "Error",
-        description: "Failed to load episodes",
+        description: "Failed to load channel and episodes",
         variant: "destructive",
       });
     } finally {
@@ -232,10 +249,10 @@ export const Ideas = () => {
             <div>
               <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
                 <Lightbulb className="h-5 w-5 text-primary" />
-                Content Ideas
+                Content Ideas - {channel?.name || "Loading..."}
               </h1>
               <p className="text-sm text-muted-foreground">
-                Discover trending content gaps and new ideas for your episodes
+                Discover trending content gaps and new ideas for this show
               </p>
             </div>
           </div>
