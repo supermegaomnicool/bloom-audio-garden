@@ -55,8 +55,6 @@ export const Ideas = () => {
     if (!user || !channelId) return;
 
     try {
-      console.log('Fetching channel with ID:', channelId, 'for user:', user.id);
-      
       // Fetch channel info
       const { data: channelData, error: channelError } = await supabase
         .from('channels')
@@ -65,15 +63,9 @@ export const Ideas = () => {
         .eq('user_id', user.id)
         .maybeSingle();
 
-      console.log('Channel query result:', { channelData, channelError });
-
-      if (channelError) {
-        console.error('Channel query error:', channelError);
-        throw channelError;
-      }
+      if (channelError) throw channelError;
       
       if (!channelData) {
-        console.log('No channel found for ID:', channelId);
         toast({
           title: "Channel not found",
           description: "This channel doesn't exist or you don't have access to it.",
@@ -98,12 +90,7 @@ export const Ideas = () => {
         .eq('user_id', user.id)
         .order('published_at', { ascending: false });
 
-      console.log('Episodes query result:', { episodesData, episodesError });
-
-      if (episodesError) {
-        console.error('Episodes query error:', episodesError);
-        throw episodesError;
-      }
+      if (episodesError) throw episodesError;
       
       setEpisodes(episodesData || []);
     } catch (error) {
