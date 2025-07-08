@@ -121,19 +121,26 @@ export const Ideas = () => {
       if (data) {
         console.log('Raw content ideas data:', data);
         console.log('Generated ideas raw:', data.generated_ideas);
-        console.log('Is generated_ideas an array?', Array.isArray(data.generated_ideas));
+        console.log('First idea structure:', data.generated_ideas[0]);
         
         // Convert the JSON data to proper types
         const convertedData: ContentIdea = {
           ...data,
           generated_ideas: Array.isArray(data.generated_ideas) 
-            ? data.generated_ideas.map(item => typeof item === 'string' ? item : String(item))
+            ? data.generated_ideas.map(item => {
+                if (typeof item === 'string') return item;
+                // If it's an object, try to extract text content
+                if (typeof item === 'object' && item !== null && !Array.isArray(item)) {
+                  const obj = item as Record<string, any>;
+                  return obj.text || obj.content || obj.description || JSON.stringify(item);
+                }
+                return String(item);
+              })
             : [],
           saved_ideas: Array.isArray(data.saved_ideas) ? data.saved_ideas : []
         };
         
         console.log('Converted ideas:', convertedData.generated_ideas);
-        console.log('Ideas count:', convertedData.generated_ideas.length);
         
         setContentIdeas(convertedData);
         setUserNotes(data.user_notes || "");
