@@ -9,6 +9,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { IdeaChatbot } from "@/components/IdeaChatbot";
 
 interface Episode {
   id: string;
@@ -119,10 +120,6 @@ export const Ideas = () => {
       if (error && error.code !== 'PGRST116') throw error;
       
       if (data) {
-        console.log('Raw content ideas data:', data);
-        console.log('Generated ideas raw:', data.generated_ideas);
-        console.log('First idea structure:', data.generated_ideas[0]);
-        
         // Convert the JSON data to proper types
         const convertedData: ContentIdea = {
           ...data,
@@ -139,8 +136,6 @@ export const Ideas = () => {
             : [],
           saved_ideas: Array.isArray(data.saved_ideas) ? data.saved_ideas : []
         };
-        
-        console.log('Converted ideas:', convertedData.generated_ideas);
         
         setContentIdeas(convertedData);
         setUserNotes(data.user_notes || "");
@@ -337,25 +332,35 @@ export const Ideas = () => {
                     AI-identified content gaps based on your {episodes.length} episodes and current industry trends
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="space-y-6">
                   {contentIdeas.generated_ideas.map((idea, index) => (
                     <div
                       key={index}
-                      className="flex items-start space-x-3 p-4 rounded-lg border bg-muted/20"
+                      className="group relative p-6 rounded-xl border border-border/50 bg-gradient-to-br from-background to-muted/20 hover:shadow-lg transition-all duration-200"
                     >
-                      <Checkbox
-                        id={`idea-${index}`}
-                        checked={contentIdeas.saved_ideas?.includes(index) || false}
-                        onCheckedChange={() => toggleSavedIdea(index)}
-                        className="mt-1"
-                      />
-                      <div className="flex-1">
-                        <label
-                          htmlFor={`idea-${index}`}
-                          className="text-sm leading-relaxed cursor-pointer"
-                        >
-                          {idea}
-                        </label>
+                      <div className="flex items-start space-x-4">
+                        <Checkbox
+                          id={`idea-${index}`}
+                          checked={contentIdeas.saved_ideas?.includes(index) || false}
+                          onCheckedChange={() => toggleSavedIdea(index)}
+                          className="mt-1 flex-shrink-0"
+                        />
+                        <div className="flex-1 space-y-2">
+                          <div className="flex items-center gap-2">
+                            <span className="inline-flex items-center justify-center w-6 h-6 text-xs font-medium bg-primary/10 text-primary rounded-full">
+                              {index + 1}
+                            </span>
+                            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                              Content Opportunity
+                            </span>
+                          </div>
+                          <label
+                            htmlFor={`idea-${index}`}
+                            className="block text-sm leading-relaxed cursor-pointer text-foreground group-hover:text-primary transition-colors"
+                          >
+                            {idea}
+                          </label>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -403,6 +408,14 @@ export const Ideas = () => {
                   )}
                 </CardContent>
               </Card>
+            )}
+
+            {/* Chatbot for discussing ideas */}
+            {contentIdeas && contentIdeas.generated_ideas.length > 0 && (
+              <IdeaChatbot 
+                ideas={contentIdeas.generated_ideas}
+                channelName={channel.name}
+              />
             )}
 
             {/* Empty State */}
