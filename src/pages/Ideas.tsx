@@ -127,7 +127,7 @@ export const Ideas = () => {
         const convertedData: ContentIdea = {
           ...data,
           generated_ideas: Array.isArray(data.generated_ideas) 
-            ? (data.generated_ideas as string[]).filter(item => typeof item === 'string')
+            ? data.generated_ideas.map(item => typeof item === 'string' ? item : String(item))
             : [],
           saved_ideas: Array.isArray(data.saved_ideas) ? data.saved_ideas : []
         };
