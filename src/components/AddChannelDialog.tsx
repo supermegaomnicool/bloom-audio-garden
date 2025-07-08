@@ -12,9 +12,10 @@ import { useToast } from "@/hooks/use-toast";
 interface AddChannelDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onChannelAdded?: () => void;
 }
 
-export const AddChannelDialog = ({ open, onOpenChange }: AddChannelDialogProps) => {
+export const AddChannelDialog = ({ open, onOpenChange, onChannelAdded }: AddChannelDialogProps) => {
   const [loading, setLoading] = useState(false);
   const [channelType, setChannelType] = useState<"youtube" | "podcast">("youtube");
   const [formData, setFormData] = useState({
@@ -99,6 +100,11 @@ export const AddChannelDialog = ({ open, onOpenChange }: AddChannelDialogProps) 
       // Reset form
       setFormData({ name: "", url: "", description: "" });
       onOpenChange(false);
+      
+      // Trigger refresh of parent component
+      if (onChannelAdded) {
+        onChannelAdded();
+      }
     } catch (error) {
       console.error("Error adding channel:", error);
       toast({

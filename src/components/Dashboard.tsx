@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,13 +8,14 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import heroImage from "@/assets/hero-fantasy-forest.jpg";
-import { ChannelList } from "./ChannelList";
+import { ChannelList, ChannelListRef } from "./ChannelList";
 import { AddChannelDialog } from "./AddChannelDialog";
 
 export const Dashboard = () => {
   const navigate = useNavigate();
   const [showAddChannel, setShowAddChannel] = useState(false);
   const { user, signOut } = useAuth();
+  const channelListRef = useRef<ChannelListRef>(null);
   const { toast } = useToast();
 
   const handleSignOut = async () => {
@@ -30,6 +31,13 @@ export const Dashboard = () => {
         description: "Failed to sign out. Please try again.",
         variant: "destructive",
       });
+    }
+  };
+
+  const handleChannelAdded = () => {
+    // Refresh the channel list when a new channel is added
+    if (channelListRef.current) {
+      channelListRef.current.refreshChannels();
     }
   };
 
@@ -144,7 +152,7 @@ export const Dashboard = () => {
                 Add Channel
               </Button>
             </div>
-            <ChannelList />
+            <ChannelList ref={channelListRef} />
           </div>
 
           {/* Quick Actions */}
@@ -213,7 +221,8 @@ export const Dashboard = () => {
 
       <AddChannelDialog 
         open={showAddChannel} 
-        onOpenChange={setShowAddChannel} 
+        onOpenChange={setShowAddChannel}
+        onChannelAdded={handleChannelAdded}
       />
     </div>
   );

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useImperativeHandle, forwardRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -15,7 +15,11 @@ import { Tables } from "@/integrations/supabase/types";
 
 type Channel = Tables<"channels">;
 
-export const ChannelList = () => {
+export interface ChannelListRef {
+  refreshChannels: () => void;
+}
+
+export const ChannelList = forwardRef<ChannelListRef>((props, ref) => {
   const navigate = useNavigate();
   const [channels, setChannels] = useState<Channel[]>([]);
   const [loading, setLoading] = useState(true);
@@ -27,6 +31,10 @@ export const ChannelList = () => {
   useEffect(() => {
     fetchChannels();
   }, []);
+
+  useImperativeHandle(ref, () => ({
+    refreshChannels: fetchChannels
+  }));
 
   const fetchChannels = async () => {
     try {
@@ -438,4 +446,6 @@ export const ChannelList = () => {
       ))}
     </div>
   );
-};
+});
+
+ChannelList.displayName = "ChannelList";
