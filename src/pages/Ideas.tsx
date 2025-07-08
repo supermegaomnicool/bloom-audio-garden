@@ -365,6 +365,36 @@ export const Ideas = () => {
                     </div>
                   ))}
 
+                  {/* Saved Ideas */}
+                  {contentIdeas.saved_ideas && contentIdeas.saved_ideas.length > 0 && (
+                    <div className="mt-6 space-y-3">
+                      <label className="text-sm font-medium">Saved Ideas</label>
+                      <div className="space-y-2">
+                        {contentIdeas.saved_ideas.map((ideaIndex, savedIndex) => (
+                          <div
+                            key={ideaIndex}
+                            className="flex items-start gap-3 p-3 rounded-lg border border-border/50 bg-primary/5"
+                          >
+                            <span className="inline-flex items-center justify-center w-6 h-6 text-xs font-medium bg-primary/20 text-primary rounded-full flex-shrink-0 mt-0.5">
+                              {savedIndex + 1}
+                            </span>
+                            <div className="flex-1 text-sm">
+                              {contentIdeas.generated_ideas[ideaIndex]}
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => toggleSavedIdea(ideaIndex)}
+                              className="text-muted-foreground hover:text-destructive flex-shrink-0"
+                            >
+                              ×
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* User Notes */}
                   <div className="mt-6 space-y-3">
                     <label className="text-sm font-medium">Your Notes</label>
