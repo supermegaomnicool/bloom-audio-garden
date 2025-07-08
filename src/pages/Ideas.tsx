@@ -351,7 +351,7 @@ export const Ideas = () => {
                               {index + 1}
                             </span>
                             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                              Content Opportunity
+                              {idea.split(' ').slice(0, 4).join(' ')}...
                             </span>
                           </div>
                           <label
