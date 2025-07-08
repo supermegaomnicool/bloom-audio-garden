@@ -116,9 +116,32 @@ Return only a JSON array of 5 content gap strings, no additional text.`;
         cleanedText = cleanedText.replace(/^```\s*/, '').replace(/\s*```$/, '');
       }
       
-      ideas = JSON.parse(cleanedText);
-      if (!Array.isArray(ideas) || ideas.length === 0) {
-        throw new Error('Invalid response format');
+      // Try to parse as JSON first
+      const parsedData = JSON.parse(cleanedText);
+      
+      if (Array.isArray(parsedData)) {
+        // If it's already an array of strings, use it
+        ideas = parsedData.map(item => {
+          if (typeof item === 'string') return item;
+          // If it's an object, extract the meaningful text
+          if (typeof item === 'object' && item !== null) {
+            // Try to extract content from common JSON keys
+            return item.idea || item.content || item.description || item.text || 
+                   Object.values(item).join(' ') || JSON.stringify(item);
+          }
+          return String(item);
+        });
+      } else if (typeof parsedData === 'object' && parsedData !== null) {
+        // If it's an object, try to extract ideas from it
+        ideas = Object.values(parsedData).map(item => {
+          if (typeof item === 'string') return item;
+          if (typeof item === 'object' && item !== null) {
+            return Object.values(item).join(' ');
+          }
+          return String(item);
+        });
+      } else {
+        throw new Error('Invalid JSON structure');
       }
     } catch (parseError) {
       console.error('Failed to parse AI response:', generatedText);
