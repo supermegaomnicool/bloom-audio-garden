@@ -51,36 +51,42 @@ serve(async (req) => {
       throw new Error('Channel not found or access denied');
     }
 
-    // Get recent episodes for context
+    // Get all episodes for complete context
     const { data: episodes, error: episodesError } = await supabase
       .from('episodes')
-      .select('title, description, transcript')
+      .select('title, description, transcript, published_at, episode_number, season_number')
       .eq('channel_id', channelId)
       .eq('user_id', user.id)
-      .order('published_at', { ascending: false })
-      .limit(10);
+      .order('published_at', { ascending: false });
 
     if (episodesError) {
       console.error('Error fetching episodes:', episodesError);
     }
 
-    // Prepare context for the AI
-    const episodeContext = episodes?.map(ep => ({
+    // Prepare comprehensive context for the AI
+    const totalEpisodes = episodes?.length || 0;
+    const episodeContext = episodes?.map((ep, index) => ({
       title: ep.title,
       description: ep.description,
-      transcript: ep.transcript ? ep.transcript.substring(0, 1000) + '...' : null
+      transcript: ep.transcript ? ep.transcript.substring(0, 2000) + '...' : null,
+      episodeNumber: ep.episode_number,
+      seasonNumber: ep.season_number,
+      publishedAt: ep.published_at
     })) || [];
 
     const contextInfo = `
 Channel: ${channel.name}
 Channel Description: ${channel.description || 'No description available'}
 Type: ${channel.type}
+Total Episodes: ${totalEpisodes}
 
-Recent Episodes:
-${episodeContext.map(ep => `
+All Episodes (${totalEpisodes} total):
+${episodeContext.map((ep, index) => `
+Episode ${ep.episodeNumber || index + 1}${ep.seasonNumber ? ` (Season ${ep.seasonNumber})` : ''}:
 - Title: ${ep.title}
 - Description: ${ep.description || 'No description'}
-${ep.transcript ? `- Transcript excerpt: ${ep.transcript}` : ''}
+- Published: ${ep.publishedAt ? new Date(ep.publishedAt).toLocaleDateString() : 'Unknown'}
+${ep.transcript ? `- Transcript excerpt: ${ep.transcript}` : '- No transcript available'}
 `).join('\n')}
 `;
 
