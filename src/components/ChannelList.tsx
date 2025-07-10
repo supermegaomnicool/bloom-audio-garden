@@ -12,6 +12,7 @@ import { Youtube, Video, Users, Calendar, TrendingUp, ExternalLink, RefreshCw, T
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Tables } from "@/integrations/supabase/types";
+import { ChannelChatbot } from "./ChannelChatbot";
 
 type Channel = Tables<"channels">;
 
@@ -401,6 +402,11 @@ export const ChannelList = forwardRef<ChannelListRef>((props, ref) => {
                   <Lightbulb className="h-4 w-4" />
                   New Ideas
                 </Button>
+              </div>
+
+              {/* Channel Chatbot */}
+              <div className="pt-4 border-t border-border/50">
+                <ChannelChatbot channelId={channel.id} channelName={channel.name} />
               </div>
             </div>
           </CardContent>

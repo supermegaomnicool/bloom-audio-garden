@@ -1,0 +1,152 @@
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.50.3';
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const { question, channelId } = await req.json();
+    
+    if (!question || !channelId) {
+      throw new Error('Question and channelId are required');
+    }
+
+    // Initialize Supabase client
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+    );
+
+    // Get the authorization header to extract user ID
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      throw new Error('No authorization header');
+    }
+
+    // Set auth for the request
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+    
+    if (userError || !user) {
+      throw new Error('Invalid token or user not found');
+    }
+
+    // Get channel information and episodes for context
+    const { data: channel, error: channelError } = await supabase
+      .from('channels')
+      .select('*')
+      .eq('id', channelId)
+      .eq('user_id', user.id)
+      .single();
+
+    if (channelError || !channel) {
+      throw new Error('Channel not found or access denied');
+    }
+
+    // Get recent episodes for context
+    const { data: episodes, error: episodesError } = await supabase
+      .from('episodes')
+      .select('title, description, transcript')
+      .eq('channel_id', channelId)
+      .eq('user_id', user.id)
+      .order('published_at', { ascending: false })
+      .limit(10);
+
+    if (episodesError) {
+      console.error('Error fetching episodes:', episodesError);
+    }
+
+    // Prepare context for the AI
+    const episodeContext = episodes?.map(ep => ({
+      title: ep.title,
+      description: ep.description,
+      transcript: ep.transcript ? ep.transcript.substring(0, 1000) + '...' : null
+    })) || [];
+
+    const contextInfo = `
+Channel: ${channel.name}
+Channel Description: ${channel.description || 'No description available'}
+Type: ${channel.type}
+
+Recent Episodes:
+${episodeContext.map(ep => `
+- Title: ${ep.title}
+- Description: ${ep.description || 'No description'}
+${ep.transcript ? `- Transcript excerpt: ${ep.transcript}` : ''}
+`).join('\n')}
+`;
+
+    // Call OpenAI API
+    const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${Deno.env.get('OPENAI_API_KEY')}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'system',
+            content: `You are a helpful assistant that answers questions about the podcast/channel "${channel.name}". Use the provided context about the channel and its episodes to give accurate, helpful responses. Be conversational and knowledgeable about the content.
+
+Context about the channel:
+${contextInfo}`
+          },
+          {
+            role: 'user',
+            content: question
+          }
+        ],
+        max_tokens: 500,
+        temperature: 0.7,
+      }),
+    });
+
+    if (!openAIResponse.ok) {
+      throw new Error(`OpenAI API error: ${openAIResponse.statusText}`);
+    }
+
+    const aiData = await openAIResponse.json();
+    const response = aiData.choices[0].message.content;
+
+    // Save the conversation to database
+    const { data: chatData, error: chatError } = await supabase
+      .from('channel_chats')
+      .insert({
+        channel_id: channelId,
+        user_id: user.id,
+        question: question,
+        response: response,
+      })
+      .select()
+      .single();
+
+    if (chatError) {
+      console.error('Error saving chat:', chatError);
+      // Don't throw error here, still return the response
+    }
+
+    return new Response(JSON.stringify({ 
+      response,
+      chatId: chatData?.id 
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+
+  } catch (error) {
+    console.error('Error in channel-chat function:', error);
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+});

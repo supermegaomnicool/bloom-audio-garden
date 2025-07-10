@@ -14,6 +14,47 @@ export type Database = {
   }
   public: {
     Tables: {
+      channel_chats: {
+        Row: {
+          channel_id: string
+          created_at: string
+          id: string
+          question: string
+          response: string
+          saved: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          channel_id: string
+          created_at?: string
+          id?: string
+          question: string
+          response: string
+          saved?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          channel_id?: string
+          created_at?: string
+          id?: string
+          question?: string
+          response?: string
+          saved?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "channel_chats_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "channels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       channels: {
         Row: {
           artwork_storage_path: string | null
