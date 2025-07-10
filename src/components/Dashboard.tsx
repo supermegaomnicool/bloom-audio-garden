@@ -47,7 +47,7 @@ export const Dashboard = () => {
       <div className="border-b border-border/50 bg-background/80 backdrop-blur-sm">
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
-            <h1 className="text-xl font-bold text-foreground">Podcast Alchemy Project</h1>
+            <h1 className="text-xl font-bold text-foreground">RSS Project</h1>
             <div className="flex items-center gap-4">
               <span className="text-sm text-muted-foreground">
                 {user?.email}

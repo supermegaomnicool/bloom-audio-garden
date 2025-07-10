@@ -177,7 +177,7 @@ export default function Auth() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl font-bold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
-            Bloom Audio Garden
+            RSS Project
           </CardTitle>
           <CardDescription>
             Sign in to your account or create a new one
