@@ -75,6 +75,8 @@ export const ChannelChatbot = ({ channelId, channelName }: ChannelChatbotProps) 
     setLoading(true);
 
     try {
+      console.log('Calling channel-chat function with:', { question: currentQuestion, channelId });
+      
       const { data, error } = await supabase.functions.invoke('channel-chat', {
         body: {
           question: currentQuestion,
@@ -82,7 +84,10 @@ export const ChannelChatbot = ({ channelId, channelName }: ChannelChatbotProps) 
         }
       });
 
+      console.log('Function response:', { data, error });
+
       if (error) {
+        console.error('Supabase function error:', error);
         throw error;
       }
 
