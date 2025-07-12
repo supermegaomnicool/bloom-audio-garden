@@ -13,7 +13,9 @@ serve(async (req) => {
   }
 
   try {
+    console.log('=== Channel Chat Function Started ===');
     const { question, channelId } = await req.json();
+    console.log('Request data:', { question: question?.substring(0, 100), channelId });
     
     if (!question || !channelId) {
       throw new Error('Question and channelId are required');
@@ -90,11 +92,17 @@ ${ep.transcript ? `- Transcript excerpt: ${ep.transcript}` : '- No transcript av
 `).join('\n')}
 `;
 
+    console.log('Context info length:', contextInfo.length);
+    console.log('Total episodes:', totalEpisodes);
+    
     // Check if OpenAI API key is configured
     const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
     if (!openAIApiKey) {
+      console.error('OpenAI API key not found');
       throw new Error('OpenAI API key not configured');
     }
+    
+    console.log('OpenAI API key configured, making request...');
 
     // Call OpenAI API
     const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
