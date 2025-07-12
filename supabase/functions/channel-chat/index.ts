@@ -90,11 +90,17 @@ ${ep.transcript ? `- Transcript excerpt: ${ep.transcript}` : '- No transcript av
 `).join('\n')}
 `;
 
+    // Check if OpenAI API key is configured
+    const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
+    if (!openAIApiKey) {
+      throw new Error('OpenAI API key not configured');
+    }
+
     // Call OpenAI API
     const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${Deno.env.get('OPENAI_API_KEY')}`,
+        'Authorization': `Bearer ${openAIApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -118,6 +124,8 @@ ${contextInfo}`
     });
 
     if (!openAIResponse.ok) {
+      const errorText = await openAIResponse.text();
+      console.error('OpenAI API error:', openAIResponse.status, openAIResponse.statusText, errorText);
       throw new Error(`OpenAI API error: ${openAIResponse.statusText}`);
     }
 
