@@ -123,10 +123,19 @@ ${contextInfo}`
       }),
     });
 
+    console.log('OpenAI API response status:', openAIResponse.status);
+
     if (!openAIResponse.ok) {
       const errorText = await openAIResponse.text();
-      console.error('OpenAI API error:', openAIResponse.status, openAIResponse.statusText, errorText);
-      throw new Error(`OpenAI API error: ${openAIResponse.statusText}`);
+      console.error('OpenAI API error details:', {
+        status: openAIResponse.status,
+        statusText: openAIResponse.statusText,
+        errorBody: errorText,
+        requestModel: 'gpt-4o-mini',
+        contextLength: contextInfo.length,
+        questionLength: question.length
+      });
+      throw new Error(`OpenAI API error: ${openAIResponse.statusText} - ${errorText}`);
     }
 
     const aiData = await openAIResponse.json();
