@@ -65,20 +65,18 @@ serve(async (req) => {
       console.error('Error fetching episodes:', episodesError);
     }
 
-    // Prepare context for the AI - include more episodes for better analysis
+    // Prepare context for the AI - include ALL episodes for complete analysis
     const totalEpisodes = episodes?.length || 0;
     
-    // Include up to 50 episodes for comprehensive analysis
-    const limitedEpisodes = episodes?.slice(0, 50) || [];
-    
-    const episodeContext = limitedEpisodes.map((ep, index) => ({
+    // Include all episodes but with truncated content to manage token usage
+    const episodeContext = episodes?.map((ep, index) => ({
       title: ep.title,
       description: ep.description ? ep.description.substring(0, 1500) : null,
       transcript: ep.transcript ? ep.transcript.substring(0, 3000) : null,
       episodeNumber: ep.episode_number,
       seasonNumber: ep.season_number,
       publishedAt: ep.published_at
-    }));
+    })) || [];
 
     const contextInfo = `
 Channel: ${channel.name}
@@ -86,7 +84,7 @@ Channel Description: ${channel.description || 'No description available'}
 Type: ${channel.type}
 Total Episodes: ${totalEpisodes}
 
-Recent Episodes (showing ${limitedEpisodes.length} of ${totalEpisodes}):
+All Episodes (${totalEpisodes} total):
 ${episodeContext.map((ep, index) => `
 Episode ${ep.episodeNumber || index + 1}${ep.seasonNumber ? ` (Season ${ep.seasonNumber})` : ''}:
 - Title: ${ep.title}
