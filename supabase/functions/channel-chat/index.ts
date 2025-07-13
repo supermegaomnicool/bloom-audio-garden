@@ -65,16 +65,20 @@ serve(async (req) => {
       console.error('Error fetching episodes:', episodesError);
     }
 
-    // Prepare comprehensive context for the AI
+    // Prepare context for the AI - limit to prevent token overflow
     const totalEpisodes = episodes?.length || 0;
-    const episodeContext = episodes?.map((ep, index) => ({
+    
+    // Limit episodes to first 10 to prevent context overflow
+    const limitedEpisodes = episodes?.slice(0, 10) || [];
+    
+    const episodeContext = limitedEpisodes.map((ep, index) => ({
       title: ep.title,
-      description: ep.description,
-      transcript: ep.transcript ? ep.transcript.substring(0, 2000) + '...' : null,
+      description: ep.description ? ep.description.substring(0, 500) : null,
+      transcript: ep.transcript ? ep.transcript.substring(0, 1000) : null,
       episodeNumber: ep.episode_number,
       seasonNumber: ep.season_number,
       publishedAt: ep.published_at
-    })) || [];
+    }));
 
     const contextInfo = `
 Channel: ${channel.name}
@@ -82,13 +86,13 @@ Channel Description: ${channel.description || 'No description available'}
 Type: ${channel.type}
 Total Episodes: ${totalEpisodes}
 
-All Episodes (${totalEpisodes} total):
+Recent Episodes (showing ${limitedEpisodes.length} of ${totalEpisodes}):
 ${episodeContext.map((ep, index) => `
 Episode ${ep.episodeNumber || index + 1}${ep.seasonNumber ? ` (Season ${ep.seasonNumber})` : ''}:
 - Title: ${ep.title}
 - Description: ${ep.description || 'No description'}
 - Published: ${ep.publishedAt ? new Date(ep.publishedAt).toLocaleDateString() : 'Unknown'}
-${ep.transcript ? `- Transcript excerpt: ${ep.transcript}` : '- No transcript available'}
+${ep.transcript ? `- Transcript excerpt: ${ep.transcript}...` : '- No transcript available'}
 `).join('\n')}
 `;
 
