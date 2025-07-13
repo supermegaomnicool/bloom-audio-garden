@@ -65,16 +65,16 @@ serve(async (req) => {
       console.error('Error fetching episodes:', episodesError);
     }
 
-    // Prepare context for the AI - limit to prevent token overflow
+    // Prepare context for the AI - include more episodes for better analysis
     const totalEpisodes = episodes?.length || 0;
     
-    // Limit episodes to first 10 to prevent context overflow
-    const limitedEpisodes = episodes?.slice(0, 10) || [];
+    // Include up to 50 episodes for comprehensive analysis
+    const limitedEpisodes = episodes?.slice(0, 50) || [];
     
     const episodeContext = limitedEpisodes.map((ep, index) => ({
       title: ep.title,
-      description: ep.description ? ep.description.substring(0, 500) : null,
-      transcript: ep.transcript ? ep.transcript.substring(0, 1000) : null,
+      description: ep.description ? ep.description.substring(0, 1500) : null,
+      transcript: ep.transcript ? ep.transcript.substring(0, 3000) : null,
       episodeNumber: ep.episode_number,
       seasonNumber: ep.season_number,
       publishedAt: ep.published_at
@@ -116,7 +116,7 @@ ${ep.transcript ? `- Transcript excerpt: ${ep.transcript}...` : '- No transcript
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: 'gpt-4o',
         messages: [
           {
             role: 'system',
