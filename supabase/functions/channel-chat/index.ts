@@ -65,14 +65,14 @@ serve(async (req) => {
       console.error('Error fetching episodes:', episodesError);
     }
 
-    // Prepare context for the AI - include ALL episodes for complete analysis
+    // Prepare context for the AI - include ALL episodes but with aggressive truncation
     const totalEpisodes = episodes?.length || 0;
     
-    // Include all episodes but with truncated content to manage token usage
+    // Include all episodes but with very short content to manage token usage
     const episodeContext = episodes?.map((ep, index) => ({
       title: ep.title,
-      description: ep.description ? ep.description.substring(0, 1500) : null,
-      transcript: ep.transcript ? ep.transcript.substring(0, 3000) : null,
+      description: ep.description ? ep.description.substring(0, 300) : null,
+      transcript: ep.transcript ? ep.transcript.substring(0, 500) : null,
       episodeNumber: ep.episode_number,
       seasonNumber: ep.season_number,
       publishedAt: ep.published_at
