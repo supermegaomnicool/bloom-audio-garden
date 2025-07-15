@@ -65,26 +65,29 @@ serve(async (req) => {
       console.error('Error fetching episodes:', episodesError);
     }
 
-    // Prepare context for the AI - include ALL episodes but with aggressive truncation
+    // Prepare context for the AI - limit to most recent 20 episodes to avoid token limits
     const totalEpisodes = episodes?.length || 0;
     
-    // Include all episodes but with very short content to manage token usage
-    const episodeContext = episodes?.map((ep, index) => ({
+    // Take only the most recent 20 episodes to stay within token limits
+    const recentEpisodes = episodes?.slice(0, 20) || [];
+    
+    const episodeContext = recentEpisodes.map((ep, index) => ({
       title: ep.title,
-      description: ep.description ? ep.description.substring(0, 300) : null,
-      transcript: ep.transcript ? ep.transcript.substring(0, 500) : null,
+      description: ep.description ? ep.description.substring(0, 400) : null,
+      transcript: ep.transcript ? ep.transcript.substring(0, 800) : null,
       episodeNumber: ep.episode_number,
       seasonNumber: ep.season_number,
       publishedAt: ep.published_at
-    })) || [];
+    }));
 
     const contextInfo = `
 Channel: ${channel.name}
 Channel Description: ${channel.description || 'No description available'}
 Type: ${channel.type}
 Total Episodes: ${totalEpisodes}
+Episodes in Context: ${recentEpisodes.length} (most recent)
 
-All Episodes (${totalEpisodes} total):
+Recent Episodes:
 ${episodeContext.map((ep, index) => `
 Episode ${ep.episodeNumber || index + 1}${ep.seasonNumber ? ` (Season ${ep.seasonNumber})` : ''}:
 - Title: ${ep.title}
@@ -92,6 +95,8 @@ Episode ${ep.episodeNumber || index + 1}${ep.seasonNumber ? ` (Season ${ep.seaso
 - Published: ${ep.publishedAt ? new Date(ep.publishedAt).toLocaleDateString() : 'Unknown'}
 ${ep.transcript ? `- Transcript excerpt: ${ep.transcript}...` : '- No transcript available'}
 `).join('\n')}
+
+Note: This analysis is based on the ${recentEpisodes.length} most recent episodes out of ${totalEpisodes} total episodes.
 `;
 
     console.log('Context info length:', contextInfo.length);
