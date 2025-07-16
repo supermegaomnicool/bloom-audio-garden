@@ -65,19 +65,66 @@ serve(async (req) => {
       console.error('Error fetching episodes:', episodesError);
     }
 
-    // Prepare context for the AI - limit to most recent 20 episodes to avoid token limits
+    // Hybrid preprocessing: analyze question and intelligently select episodes
     const totalEpisodes = episodes?.length || 0;
     
-    // Take only the most recent 20 episodes to stay within token limits
-    const recentEpisodes = episodes?.slice(0, 20) || [];
+    // Extract keywords from the question for relevance scoring
+    const questionKeywords = question.toLowerCase()
+      .replace(/[^\w\s]/g, '')
+      .split(/\s+/)
+      .filter(word => word.length > 2 && !['the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'can', 'had', 'her', 'was', 'one', 'our', 'out', 'day', 'get', 'has', 'him', 'his', 'how', 'man', 'new', 'now', 'old', 'see', 'two', 'way', 'who', 'boy', 'did', 'its', 'let', 'put', 'say', 'she', 'too', 'use'].includes(word));
     
-    const episodeContext = recentEpisodes.map((ep, index) => ({
+    // Score episodes based on relevance to the question
+    const scoredEpisodes = episodes?.map(ep => {
+      let score = 0;
+      const content = `${ep.title} ${ep.description || ''} ${ep.transcript || ''}`.toLowerCase();
+      
+      // Score based on keyword matches
+      questionKeywords.forEach(keyword => {
+        const keywordCount = (content.match(new RegExp(keyword, 'g')) || []).length;
+        score += keywordCount * 2; // Title/description matches worth more
+        
+        // Bonus for title matches
+        if (ep.title.toLowerCase().includes(keyword)) {
+          score += 5;
+        }
+      });
+      
+      // Recency bonus (newer episodes get slight preference)
+      const episodeIndex = episodes.indexOf(ep);
+      score += Math.max(0, 10 - episodeIndex * 0.1);
+      
+      return { ...ep, relevanceScore: score };
+    }).sort((a, b) => b.relevanceScore - a.relevanceScore) || [];
+    
+    // Select top 15 most relevant episodes, ensuring we have some recent ones
+    const topRelevant = scoredEpisodes.slice(0, 12);
+    const recentFallback = scoredEpisodes.slice(0, 5);
+    const selectedEpisodes = [...new Map([...topRelevant, ...recentFallback].map(ep => [ep.id, ep])).values()].slice(0, 15);
+    
+    // Summarize long content intelligently
+    const summarizeContent = (text: string, maxLength: number) => {
+      if (!text || text.length <= maxLength) return text;
+      
+      // Try to find natural break points (sentences)
+      const sentences = text.split(/[.!?]+/);
+      let summary = '';
+      for (const sentence of sentences) {
+        if ((summary + sentence).length > maxLength) break;
+        summary += sentence + '. ';
+      }
+      
+      return summary.trim() || text.substring(0, maxLength);
+    };
+    
+    const episodeContext = selectedEpisodes.map((ep, index) => ({
       title: ep.title,
-      description: ep.description ? ep.description.substring(0, 400) : null,
-      transcript: ep.transcript ? ep.transcript.substring(0, 800) : null,
+      description: ep.description ? summarizeContent(ep.description, 300) : null,
+      transcript: ep.transcript ? summarizeContent(ep.transcript, 600) : null,
       episodeNumber: ep.episode_number,
       seasonNumber: ep.season_number,
-      publishedAt: ep.published_at
+      publishedAt: ep.published_at,
+      relevanceScore: ep.relevanceScore
     }));
 
     const contextInfo = `
@@ -85,18 +132,20 @@ Channel: ${channel.name}
 Channel Description: ${channel.description || 'No description available'}
 Type: ${channel.type}
 Total Episodes: ${totalEpisodes}
-Episodes in Context: ${recentEpisodes.length} (most recent)
+Selected Episodes: ${selectedEpisodes.length} (most relevant to your question)
 
-Recent Episodes:
+Question Keywords: ${questionKeywords.join(', ')}
+
+Relevant Episodes:
 ${episodeContext.map((ep, index) => `
-Episode ${ep.episodeNumber || index + 1}${ep.seasonNumber ? ` (Season ${ep.seasonNumber})` : ''}:
+Episode ${ep.episodeNumber || index + 1}${ep.seasonNumber ? ` (Season ${ep.seasonNumber})` : ''} [Relevance: ${ep.relevanceScore?.toFixed(1)}]:
 - Title: ${ep.title}
 - Description: ${ep.description || 'No description'}
 - Published: ${ep.publishedAt ? new Date(ep.publishedAt).toLocaleDateString() : 'Unknown'}
-${ep.transcript ? `- Transcript excerpt: ${ep.transcript}...` : '- No transcript available'}
+${ep.transcript ? `- Key Content: ${ep.transcript}` : '- No transcript available'}
 `).join('\n')}
 
-Note: This analysis is based on the ${recentEpisodes.length} most recent episodes out of ${totalEpisodes} total episodes.
+Note: Episodes selected based on relevance to your question from ${totalEpisodes} total episodes.
 `;
 
     console.log('Context info length:', contextInfo.length);
