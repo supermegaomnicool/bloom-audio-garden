@@ -65,42 +65,85 @@ serve(async (req) => {
       console.error('Error fetching episodes:', episodesError);
     }
 
-    // Hybrid preprocessing: analyze question and intelligently select episodes
+    // Advanced preprocessing: analyze question and intelligently select episodes
     const totalEpisodes = episodes?.length || 0;
     
-    // Extract keywords from the question for relevance scoring
-    const questionKeywords = question.toLowerCase()
+    // Extract and expand keywords from the question for comprehensive relevance scoring
+    const baseKeywords = question.toLowerCase()
       .replace(/[^\w\s]/g, '')
       .split(/\s+/)
       .filter(word => word.length > 2 && !['the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'can', 'had', 'her', 'was', 'one', 'our', 'out', 'day', 'get', 'has', 'him', 'his', 'how', 'man', 'new', 'now', 'old', 'see', 'two', 'way', 'who', 'boy', 'did', 'its', 'let', 'put', 'say', 'she', 'too', 'use'].includes(word));
     
-    // Score episodes based on relevance to the question
+    // Add related terms and synonyms for better matching
+    const expandedKeywords = [...baseKeywords];
+    baseKeywords.forEach(keyword => {
+      // Add interview-related terms
+      if (['interview', 'guest', 'talk', 'conversation'].includes(keyword)) {
+        expandedKeywords.push('interview', 'guest', 'conversation', 'chat', 'discussion', 'with');
+      }
+      // Add hospitality-related terms
+      if (['hotel', 'hospitality', 'venue', 'event'].includes(keyword)) {
+        expandedKeywords.push('hotel', 'hospitality', 'venue', 'wedding', 'event', 'resort', 'reception');
+      }
+      // Add floral-related terms
+      if (['florist', 'floral', 'flower', 'flowers', 'design'].includes(keyword)) {
+        expandedKeywords.push('florist', 'floral', 'designer', 'flowers', 'arrangements', 'bouquet');
+      }
+    });
+    
+    const questionKeywords = [...new Set(expandedKeywords)];
+    
+    // Score episodes based on comprehensive relevance to the question
     const scoredEpisodes = episodes?.map(ep => {
       let score = 0;
-      const content = `${ep.title} ${ep.description || ''} ${ep.transcript || ''}`.toLowerCase();
+      const title = (ep.title || '').toLowerCase();
+      const description = (ep.description || '').toLowerCase();
+      const transcript = (ep.transcript || '').toLowerCase();
+      const fullContent = `${title} ${description} ${transcript}`;
       
-      // Score based on keyword matches
+      // Score based on keyword matches with different weights
       questionKeywords.forEach(keyword => {
-        const keywordCount = (content.match(new RegExp(keyword, 'g')) || []).length;
-        score += keywordCount * 2; // Title/description matches worth more
-        
-        // Bonus for title matches
-        if (ep.title.toLowerCase().includes(keyword)) {
-          score += 5;
+        // Title matches are most important
+        if (title.includes(keyword)) {
+          score += 20;
         }
+        // Description matches are very important
+        if (description.includes(keyword)) {
+          score += 10;
+        }
+        // Transcript matches are important
+        const transcriptMatches = (transcript.match(new RegExp(keyword, 'g')) || []).length;
+        score += transcriptMatches * 3;
       });
       
-      // Recency bonus (newer episodes get slight preference)
+      // Bonus scoring for interview indicators
+      if (title.includes('interview') || title.includes('guest') || title.includes('with ')) {
+        score += 15;
+      }
+      if (description.includes('interview') || description.includes('guest') || description.includes('conversation')) {
+        score += 10;
+      }
+      
+      // Bonus for episodes with substantial content (likely interviews)
+      if (transcript && transcript.length > 5000) {
+        score += 5;
+      }
+      
+      // Small recency bonus (newer episodes get slight preference)
       const episodeIndex = episodes.indexOf(ep);
-      score += Math.max(0, 10 - episodeIndex * 0.1);
+      score += Math.max(0, 5 - episodeIndex * 0.01);
       
       return { ...ep, relevanceScore: score };
     }).sort((a, b) => b.relevanceScore - a.relevanceScore) || [];
     
-    // Select top 15 most relevant episodes, ensuring we have some recent ones
-    const topRelevant = scoredEpisodes.slice(0, 12);
-    const recentFallback = scoredEpisodes.slice(0, 5);
-    const selectedEpisodes = [...new Map([...topRelevant, ...recentFallback].map(ep => [ep.id, ep])).values()].slice(0, 15);
+    // Dynamic selection based on podcast size and relevance scores
+    const maxEpisodes = Math.min(25, Math.max(15, Math.floor(totalEpisodes * 0.1)));
+    const topScoring = scoredEpisodes.filter(ep => ep.relevanceScore > 0).slice(0, maxEpisodes);
+    
+    // If we don't have enough relevant episodes, add some recent ones as fallback
+    const selectedEpisodes = topScoring.length < 10 
+      ? [...topScoring, ...scoredEpisodes.slice(0, 15 - topScoring.length)]
+      : topScoring;
     
     // Summarize long content intelligently
     const summarizeContent = (text: string, maxLength: number) => {
